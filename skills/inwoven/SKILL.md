@@ -1,6 +1,7 @@
 ---
 name: inwoven
 description: "Add, move or reorder Inwoven backlog.md items; pick, start, block, mark done, accept or reopen; find which goal an item serves; edit goals.md, impact.md or wardley.md; validate or check files."
+license: MIT
 ---
 
 # Inwoven

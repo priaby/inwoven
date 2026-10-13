@@ -138,4 +138,4 @@ Read whole instruction files at the repo root, every folder on the path and the 
 - Commit only when the person or repo asks; put the item id in the subject and keep the host's Co-Authored-By trailer.
 ```
 
-Copyright (c) 2026 Pavel Riaby. All rights reserved.
+MIT licence. See [LICENSE](LICENSE).
