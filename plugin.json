@@ -1,0 +1,10 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "inwoven",
+  "description": "Work with Inwoven product files.",
+  "author": {
+    "name": "Inwoven"
+  },
+  "homepage": "https://backlog.works",
+  "repository": "https://github.com/priaby/inwoven"
+}

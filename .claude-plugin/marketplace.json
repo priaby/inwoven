@@ -1,0 +1,14 @@
+{
+  "name": "inwoven",
+  "owner": {
+    "name": "Inwoven"
+  },
+  "plugins": [
+    {
+      "name": "inwoven",
+      "source": "./",
+      "description": "Work with Inwoven product files."
+    }
+  ],
+  "description": "Work with Inwoven product files."
+}
