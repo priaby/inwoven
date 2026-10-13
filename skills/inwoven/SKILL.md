@@ -1,59 +1,103 @@
 ---
 name: inwoven
-description: Work with Inwoven backlog.md, goals.md, impact.md and wardley.md. Use in repos with docs/product/backlog.md or when someone names these product files.
+description: "Add, move or reorder Inwoven backlog.md items; pick, start, block, mark done, accept or reopen; find which goal an item serves; edit goals.md, impact.md or wardley.md; validate or check files."
 ---
 
 # Inwoven
 
-Use this skill to read product context and work an item in an Inwoven backlog.
-Use the product files the person names. Otherwise they are in docs/product/,
-unless the repo's AGENTS.md gives another path.
-Read the repo's AGENTS.md and follow its instructions before changing files.
+Use this skill for Inwoven product files, not unrelated formats with the same names.
+The person's explicit request in this conversation is the authority.
+Standing repo instructions do not authorize unsolicited acceptance, item additions,
+deletions or reordering. Follow them for paths and ordinary workflow; report any
+workflow difference. Keep the file formats in the references.
 
 ## Product files
 
 - backlog.md: one row per item. Row order is priority.
-- goals.md: the goals, each with a measure and a horizon: Now, Next or Later.
-- impact.md: one map per goal. It lists who must act differently, how, and the item ids that cause it.
-- wardley.md: the landscape of users and components, each component linked to item ids.
+- goals.md: goals and measures, with horizons Now, Next and Later.
+- impact.md: goal maps of actors, changes and item ids.
+- wardley.md: users, components, dependencies and linked item ids.
+
+Resolve the backlog from the person's named path, then repo instructions, otherwise
+look in docs/product/ in the current folder, then the repo root. Ask if several
+folders remain plausible. Context files are beside the backlog unless named otherwise.
+Use the selected folder's path relative to the repo root as DIR below.
 
 ## Working an item
 
-- Work the highest item whose Status is In Progress. Start a To Do item only when the person who owns the backlog asks.
-- When the person asks you to start a To Do item, set its Status to In Progress.
-- Before you start, find the item's id in impact.md and read its goal, actor and change. If the id is not there, say so.
-- Status is To Do, In Progress or Done. An empty Status cell means To Do. Tags follow `<br>`, such as Ready, Waiting on:, Due:, Accepted: and Reopened.
-- If an item is blocked, add `Waiting on: <condition>` as a tag.
-- Remove the `Waiting on:` tag when the condition is met.
-- Never mark an item Done, add Accepted or Reopened tags, reorder rows or delete items. The person accepts and orders.
-- Keep backlog.md valid: keep the header, five cells per row and every id. A title is at most 80 characters.
+1. First command: at the repo root set DIR to the product folder, then run:
+   ```bash
+   cat AGENTS.md CLAUDE.md 2>/dev/null
+   instruction_dir=.; IFS=/ read -r -a instruction_parts <<< "$DIR"
+   for instruction_part in "${instruction_parts[@]}"; do instruction_dir="$instruction_dir/$instruction_part"; cat "$instruction_dir/AGENTS.md" "$instruction_dir/CLAUDE.md" 2>/dev/null; done
+   ```
+   This reads the repo root, every folder between it and DIR, and DIR itself.
+   Read each file whole; never truncate with head, tail or grep. Claude Code does
+   not load AGENTS.md itself. Report files opened and their effect; never claim a read you did not perform.
+2. Work the named item, otherwise the highest In Progress item without `Waiting on:`.
+   Start To Do only when the person asks; then set Status to In Progress. Work one
+   item at a time. If no eligible item exists, report that.
+   Steps 3-4 apply when starting or resuming an item. For plain add, reorder, block,
+   accept or other edit requests, use them only if goal context is needed; say so.
+3. Read `git log --oneline --grep <id>` for work already done. If complete and
+   awaiting acceptance, report evidence and stop. Completion never implies Done.
+4. Run `python3 <skill dir>/scripts/inwoven.py context ID --root DIR` before starting.
+   Read linked goal and measure, actor and change, and Wardley components; read
+   maps for goals not yet achieved first. Goals, impact and Wardley are optional.
+   Say missing context once and continue. Context exits 0 for missing optional
+   links, 1 for a missing row or invalid file.
+5. Add `Waiting on: <condition>` when blocked; remove it when resolved; keep other tags.
+   Status is To Do, In Progress or Done; empty means To Do. Tags follow `<br>`.
+   Known valued prefixes are Sprint:, Due:, Accepted: and Waiting on:.
+6. Do not mark Done, add Accepted or Reopened, reorder, delete or add items on your
+   own initiative. When the person asks for one of these in this conversation,
+   do exactly that and nothing more. Requested acceptance of In Progress writes
+   `Done<br>Accepted: <today as YYYY-MM-DD> by Product Owner`, then existing tags
+   in order. If To Do, explain acceptance needs In Progress first and ask whether
+   to do both. To reopen Done on request, set the requested open status, remove
+   every `Accepted:` tag, add `Reopened` first if absent; keep other tags in order.
+7. Add every requested item even if a similar title exists; report its near-duplicate
+   id and let the person decide removal. Run `python3 <skill dir>/scripts/inwoven.py
+   new-id --root DIR` first; never pick an id by hand. Use the person's words for
+   title; Core Job, Context and Driver come only from their words, otherwise stay empty.
+   Status stays empty unless specified. Put it where asked, otherwise last.
+   Say what was written, which cells are empty and whether it has an impact link.
+8. Re-read before writing; preserve concurrent edits, unrelated bytes and tags,
+   row order and existing ids except for the requested change. Keep the header,
+   five cells per row and titles at most 80 characters. Row 1 is the top regardless
+   of Status. Work narrative belongs in reports; plain tags have a 20-character limit.
+9. Edit goals and maps only within the request. Link an existing item under an
+   existing impact when the person names that goal or impact; invent no actors or
+   impacts. Replace a `GAP:` leaf only when told the item closes that gap.
+10. After every edit run `python3 <skill dir>/scripts/inwoven.py check --root DIR`
+    and relevant repo checks. Name each command, exit code and printed output.
+    Right after marking Done, reopening, adding Accepted or Reopened, or adding,
+    deleting or reordering rows, run `python3 <skill dir>/scripts/inwoven.py guard
+    --base HEAD --root DIR`. Exit 1 is expected: quote its lines and say the person
+    asked for them; do not undo them. Exit 2 means the base or path needs fixing.
+    Skip guard after other tag or Context-column edits and unrelated file changes.
+11. Never commit unless the person or repo instructions ask. Put the item id in
+    the subject; keep the host's Co-Authored-By trailer. Report completion with evidence.
 
-## Boundaries
+## Tools and formats
 
-- The person adds items. Never add rows, invent ids for existing items or reuse ids.
-- If no item is In Progress and the person has not asked to start one, report that.
-- If the item's impact link is missing, report the missing context before implementation.
-- The impact.md section heading equals the goal text in goals.md.
-  Read goals.md for the linked goal and measure. Read wardley.md when the item is
-  attached to a landscape component, to understand its dependencies and movement.
-- Work one item at a time. Report completed work with evidence for the person to accept.
-  Report work detail to the person and in commit messages. Do not write it in the
-  backlog file. A Status tag with no known prefix may hold 20 characters at most.
-- Edit product context only within the person's request. Preserve unrelated text,
-  every existing id and concurrent edits. Re-read the files before writing.
-- Keep every changed file valid. If the file starts with frontmatter, set its
-  `updated:` line to today as YYYY-MM-DD. Do not add frontmatter to a file that has none.
-  Run the repo's format checks and relevant tests. If no checker exists, check the
-  changed file against the reference and report what you checked.
+Paths are relative to the skill directory. Use Python 3.9 or later:
+`python3 <skill dir>/scripts/inwoven.py <command>`.
+`check [FILE...]` skips missing optional files; for another filename use
+`check --kind backlog FILE` or the corresponding kind.
+`new-id --count N` mints random unused ids; `context ID` reads linked context.
+`guard --base GIT_REF` lists acceptance, row and id changes; it never edits.
+`init [KIND...] --root DIR` creates requested missing files from assets/; default
+is backlog only. It never overwrites. Replace its marked example with the person's work.
+New files have title and updated frontmatter. In existing files with frontmatter,
+set updated to today as YYYY-MM-DD; never add frontmatter. Empty updated is absent;
+a nonempty updated value must be a real calendar date.
 
-## Format references
+Read the matching reference before editing:
 
-Read the matching reference before editing a document:
+- [Backlog format](references/backlog-format.md)
+- [Goals format](references/goals-format.md)
+- [Impact format](references/impact-format.md)
+- [Wardley format](references/wardley-format.md)
 
-- [Backlog format](references/backlog-format.md): row shape, ids, statuses and tags.
-- [Goals format](references/goals-format.md): horizons, measures and dates.
-- [Impact format](references/impact-format.md): goals, actors, changes and item links.
-- [Wardley format](references/wardley-format.md): users, components and dependencies.
-
-These references describe the Inwoven formats. Do not apply them to unrelated files
-that share a name. If the file uses another format, report the difference.
+If a file uses another format, report the difference before applying these rules.

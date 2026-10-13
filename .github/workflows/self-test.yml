@@ -1,0 +1,54 @@
+name: Self-test
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      - uses: ./
+        with:
+          root: skills/inwoven/assets
+      - name: Prepare broken fixture
+        shell: bash
+        run: |
+          mkdir broken
+          cp skills/inwoven/assets/backlog.md broken/backlog.md
+          echo '| K417. Duplicate id | | | | |' >> broken/backlog.md
+      - uses: ./
+        id: broken
+        continue-on-error: true
+        with:
+          root: broken
+      - name: Require rejection
+        shell: bash
+        env:
+          BROKEN_RESULT: ${{ steps.broken.outcome }}
+        run: test "$BROKEN_RESULT" = failure
+      - name: Prepare guard fixture
+        shell: bash
+        run: |
+          mkdir guard-fixture
+          cp skills/inwoven/assets/backlog.md guard-fixture/backlog.md
+          git -C guard-fixture init -b main
+          git -C guard-fixture -c user.name=Test -c user.email=test@example.invalid add .
+          git -C guard-fixture -c user.name=Test -c user.email=test@example.invalid commit -m base
+          python3 -c 'from pathlib import Path; p=Path("guard-fixture/backlog.md"); p.write_text(p.read_text().replace("|  |  |  |  |", "|  |  | Done |  |"))'
+      - uses: ./
+        with:
+          root: guard-fixture
+          guard-base: HEAD
+      - uses: ./
+        id: guard-strict
+        continue-on-error: true
+        with:
+          root: guard-fixture
+          guard-base: HEAD
+          fail-on-guard: 'true'
+      - name: Require strict guard rejection
+        shell: bash
+        env:
+          GUARD_RESULT: ${{ steps.guard-strict.outcome }}
+        run: test "$GUARD_RESULT" = failure

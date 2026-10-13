@@ -1,0 +1,39 @@
+name: Inwoven product files
+description: Check product files and report changes that need an explicit request
+inputs:
+  root:
+    description: Product files directory
+    default: docs/product
+  guard-base:
+    description: Optional git revision to compare
+    default: ''
+  fail-on-guard:
+    description: Fail when guard reports a change
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Check format
+      shell: bash
+      env:
+        INWOVEN_ROOT: ${{ inputs.root }}
+      run: python3 "$GITHUB_ACTION_PATH/skills/inwoven/scripts/inwoven.py" check --root "$INWOVEN_ROOT"
+    - name: Guard requested changes
+      if: inputs.guard-base != ''
+      shell: bash
+      env:
+        INWOVEN_ROOT: ${{ inputs.root }}
+        INWOVEN_BASE: ${{ inputs.guard-base }}
+        INWOVEN_FAIL: ${{ inputs.fail-on-guard }}
+      run: |
+        set +e
+        python3 "$GITHUB_ACTION_PATH/skills/inwoven/scripts/inwoven.py" guard --root "$INWOVEN_ROOT" --base "$INWOVEN_BASE"
+        result=$?
+        if [ "$result" -ne 0 ]; then
+          if [ "$INWOVEN_FAIL" = true ]; then exit "$result"; fi
+          if [ "$result" -eq 1 ]; then
+            echo '::warning::Inwoven guard found changes; confirm each against the request.'
+          else
+            echo '::warning::Inwoven guard could not compare; check the root and fetch the base revision.'
+          fi
+        fi

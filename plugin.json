@@ -6,5 +6,6 @@
     "name": "Inwoven"
   },
   "homepage": "https://backlog.works",
-  "repository": "https://github.com/priaby/inwoven"
+  "repository": "https://github.com/priaby/inwoven",
+  "version": "0.2.0"
 }
