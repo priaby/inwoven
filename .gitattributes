@@ -1,0 +1,3 @@
+# Preserve fixture bytes so LF and CRLF cases stay distinct on every runner.
+tests/fixtures/** -text
+*.sh text eol=lf

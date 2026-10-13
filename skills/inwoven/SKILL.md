@@ -26,8 +26,9 @@ Use the selected folder's path relative to the repo root as DIR below.
 
 ## Working an item
 
-1. First command: at the repo root set DIR to the product folder, then run:
+1. First command at the repo root: replace only the DIR value below with the resolved folder, then run:
    ```bash
+   DIR="docs/product" # one folder path relative to the repo root; do not use find
    cat AGENTS.md CLAUDE.md 2>/dev/null
    instruction_dir=.; IFS=/ read -r -a instruction_parts <<< "$DIR"
    for instruction_part in "${instruction_parts[@]}"; do instruction_dir="$instruction_dir/$instruction_part"; cat "$instruction_dir/AGENTS.md" "$instruction_dir/CLAUDE.md" 2>/dev/null; done
@@ -52,7 +53,7 @@ Use the selected folder's path relative to the repo root as DIR below.
    Known valued prefixes are Sprint:, Due:, Accepted: and Waiting on:.
 6. Do not mark Done, add Accepted or Reopened, reorder, delete or add items on your
    own initiative. When the person asks for one of these in this conversation,
-   do exactly that and nothing more. Requested acceptance of In Progress writes
+   do exactly that and nothing more. Ask whether close means accept or cancel. A request to mark done or accept an In Progress item is a request for acceptance and writes
    `Done<br>Accepted: <today as YYYY-MM-DD> by Product Owner`, then existing tags
    in order. If To Do, explain acceptance needs In Progress first and ask whether
    to do both. To reopen Done on request, set the requested open status, remove
@@ -67,10 +68,11 @@ Use the selected folder's path relative to the repo root as DIR below.
    row order and existing ids except for the requested change. Keep the header,
    five cells per row and titles at most 80 characters. Row 1 is the top regardless
    of Status. Work narrative belongs in reports; plain tags have a 20-character limit.
+   In an existing file with frontmatter, set updated to today as YYYY-MM-DD in every edit, reorders included.
 9. Edit goals and maps only within the request. Link an existing item under an
    existing impact when the person names that goal or impact; invent no actors or
    impacts. Replace a `GAP:` leaf only when told the item closes that gap.
-10. After every edit run `python3 <skill dir>/scripts/inwoven.py check --root DIR`
+10. After every edit, including code while starting an item, run `python3 <skill dir>/scripts/inwoven.py check --root DIR`
     and relevant repo checks. Name each command, exit code and printed output.
     Right after marking Done, reopening, adding Accepted or Reopened, or adding,
     deleting or reordering rows, run `python3 <skill dir>/scripts/inwoven.py guard
@@ -82,17 +84,15 @@ Use the selected folder's path relative to the repo root as DIR below.
 
 ## Tools and formats
 
-Paths are relative to the skill directory. Use Python 3.9 or later:
+Paths are relative to the skill directory. The checker needs Python 3.9+:
 `python3 <skill dir>/scripts/inwoven.py <command>`.
 `check [FILE...]` skips missing optional files; for another filename use
 `check --kind backlog FILE` or the corresponding kind.
 `new-id --count N` mints random unused ids; `context ID` reads linked context.
-`guard --base GIT_REF` lists acceptance, row and id changes; it never edits.
+`guard --base GIT_REF` needs git on PATH; it lists acceptance, row and id changes and never edits.
 `init [KIND...] --root DIR` creates requested missing files from assets/; default
 is backlog only. It never overwrites. Replace its marked example with the person's work.
-New files have title and updated frontmatter. In existing files with frontmatter,
-set updated to today as YYYY-MM-DD; never add frontmatter. Empty updated is absent;
-a nonempty updated value must be a real calendar date.
+New files have title and updated frontmatter. Never add frontmatter to existing files. Empty updated is absent; a nonempty updated value must be a real calendar date.
 
 Read the matching reference before editing:
 

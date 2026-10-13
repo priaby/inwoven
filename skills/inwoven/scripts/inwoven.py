@@ -409,7 +409,7 @@ def check(root, paths, kind=None):
 
 
 def git(root, *args):
-    return subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, text=True).stdout
+    return subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, text=True, encoding="utf-8").stdout
 
 
 def new_ids(root, count):
@@ -482,20 +482,30 @@ def context(root, ident):
 
 
 def guard(root, base):
+    if not shutil.which("git"):
+        print("inwoven: guard needs git on PATH", file=sys.stderr)
+        return 2
     repo = Path(git(root, "rev-parse", "--show-toplevel").strip())
     relative = (root / "backlog.md").resolve().relative_to(repo.resolve()).as_posix()
     # Distinguish a genuinely absent base file from an invalid revision.
     git(root, "rev-parse", "--verify", base + "^{commit}")
     exists = git(repo, "ls-tree", "--full-tree", "--name-only", base, "--", relative).strip()
-    before, problems = parse(git(root, "show", base + ":" + relative), "backlog") if exists else ([], [])
+    before_text = git(root, "show", base + ":" + relative) if exists else ""
+    before, problems = parse(before_text, "backlog") if exists else ([], [])
     path = root / "backlog.md"
-    after, issues = parse(path.read_text(encoding="utf-8"), "backlog") if path.exists() else ([], [])
+    after_text = path.read_text(encoding="utf-8") if path.exists() else ""
+    after, issues = parse(after_text, "backlog") if path.exists() else ([], [])
     if problems or issues:
         for n, message in problems + issues:
             print("{}:{}: {}".format(path, n, message), file=sys.stderr)
         return 2
     old, new = {r["id"]: r for r in before}, {r["id"]: r for r in after}
     findings = []
+    updated = metadata(after_text.splitlines()).get("updated", "")
+    today = datetime.date.today().isoformat()
+    if (before_text != after_text and updated and updated != today
+            and updated == metadata(before_text.splitlines()).get("updated")):
+        findings.append("updated: unchanged; set updated to " + today + " after this edit")
     for ident, row in new.items():
         was = old.get(ident)
         if was is None:
@@ -566,45 +576,65 @@ def recognizes(text, kind):
     return any(re.fullmatch(r"##(?: (.*)|[ \t]*)", line) for line in lines[body_start(lines):])
 
 
+def hook_paths(event):
+    # Codex uses PostToolUse and tool_input.command for apply_patch; aliases
+    # Edit/Write also match it. Shell-applied patches (Bash) are out of scope.
+    # Trust and schema: https://learn.chatgpt.com/docs/hooks
+    tool_input = event.get("tool_input") or {}
+    if not isinstance(tool_input, dict):
+        return []
+    if event.get("tool_name") == "apply_patch":
+        patch = tool_input.get("command", "")
+        if not isinstance(patch, str) or not patch.lstrip("\ufeff \t\r\n").startswith("*** Begin Patch"):
+            return []
+        return [value.strip() for value in
+                re.findall(r"(?m)^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$", patch)]
+    if event.get("tool_name") in ("Edit", "Write", "MultiEdit"):
+        value = tool_input.get("file_path", "")
+        return [value] if isinstance(value, str) and value else []
+    return []
+
+
 def hook():
-    # Infra and foreign-file events stay silent. Only recognized format errors
-    # use exit 2, the Claude PostToolUse stderr feedback contract.
-    if not shutil.which("git"):
-        return 0
+    # Infra and foreign-file events stay silent. Recognized errors use exit 2
+    # for the Claude and Codex PostToolUse stderr feedback contract.
     try:
         event = json.load(sys.stdin)
-        if not isinstance(event, dict) or event.get("tool_name") not in ("Edit", "Write", "MultiEdit"):
+        if not isinstance(event, dict):
             return 0
-        value = (event.get("tool_input") or {}).get("file_path", "")
-        if not isinstance(value, str) or not value:
-            return 0
-        path = Path(value)
-        if path.name not in [k + ".md" for k in FILES]:
-            return 0
-        if not path.is_absolute():
-            path = Path(event.get("cwd", ".")) / path
-        text = path.read_text(encoding="utf-8") if path.exists() else ""
-        previous = ""
+        paths = hook_paths(event)
+    except (ValueError, AttributeError, TypeError):
+        return 0
+    failed = False
+    for value in dict.fromkeys(paths):
         try:
-            repo = Path(git(path.parent, "rev-parse", "--show-toplevel").strip())
-            relative = path.resolve().relative_to(repo.resolve()).as_posix()
-            previous = git(repo, "show", "HEAD:" + relative)
-        except (OSError, ValueError, subprocess.CalledProcessError):
-            pass
-        candidates = [path.stem]
-        kind = next((k for k in candidates if recognizes(previous, k)), None)
-        kind = kind or next((k for k in candidates if recognizes(text, k)), None)
-        if kind is None:
-            return 0
-        diagnostics = io.StringIO()
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(diagnostics):
-            failed = check(path.parent, [str(path)], kind)
-        if failed:
-            print(diagnostics.getvalue(), end="", file=sys.stderr)
-            return 2
-        return 0
-    except (OSError, UnicodeError, ValueError, AttributeError, TypeError):
-        return 0
+            path = Path(value)
+            if path.name not in [k + ".md" for k in FILES]:
+                continue
+            if not path.is_absolute():
+                path = Path(event.get("cwd", ".")) / path
+            if not path.exists():
+                continue  # Requested removals and moves must not suggest recreating files.
+            text = path.read_text(encoding="utf-8")
+            previous = ""
+            try:
+                repo = Path(git(path.parent, "rev-parse", "--show-toplevel").strip())
+                relative = path.resolve().relative_to(repo.resolve()).as_posix()
+                previous = git(repo, "show", "HEAD:" + relative)
+            except (OSError, ValueError, subprocess.CalledProcessError):
+                pass
+            kind = path.stem
+            if not recognizes(previous, kind) and not recognizes(text, kind):
+                continue
+            diagnostics = io.StringIO()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(diagnostics):
+                invalid = check(path.parent, [str(path)], kind)
+            if invalid:
+                print(diagnostics.getvalue(), end="", file=sys.stderr)
+                failed = True
+        except (OSError, UnicodeError, ValueError, AttributeError, TypeError):
+            continue
+    return 2 if failed else 0
 
 
 def main():
@@ -627,7 +657,7 @@ def main():
             p.add_argument("--base", required=True, help="git revision to compare; fetch it first")
         elif name == "init":
             p.add_argument("kinds", nargs="*", help="requested kinds: backlog, goals, impact, wardley; default: backlog")
-    commands.add_parser("hook", help="Claude PostToolUse adapter: read event JSON on stdin")
+    commands.add_parser("hook", help="Claude and Codex PostToolUse adapter: read event JSON on stdin")
     args = parser.parse_args()
     try:
         if args.command == "hook":
@@ -659,4 +689,7 @@ def main():
 
 
 if __name__ == "__main__":
+    # Pipes on Windows otherwise use the local ANSI code page, even for UTF-8 files.
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     sys.exit(main())

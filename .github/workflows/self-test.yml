@@ -1,11 +1,18 @@
 name: Self-test
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '11 4 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.9'
       - uses: ./
@@ -24,9 +31,16 @@ jobs:
           root: broken
       - name: Require rejection
         shell: bash
+        run: |
+          test "$BROKEN_RESULT" = failure
+          python3 skills/inwoven/scripts/inwoven.py check --root broken > broken-check.log 2>&1 && exit 1 || result=$?
+          test "$result" = 1
+          grep -F 'duplicate id K417' broken-check.log
+          printf '%s\n' "$BROKEN_DIAGNOSTICS" | grep -F 'duplicate id K417'
+        # The composite also exposes its actual diagnostic, so unrelated failures fail.
         env:
           BROKEN_RESULT: ${{ steps.broken.outcome }}
-        run: test "$BROKEN_RESULT" = failure
+          BROKEN_DIAGNOSTICS: ${{ steps.broken.outputs.diagnostics }}
       - name: Prepare guard fixture
         shell: bash
         run: |
@@ -51,4 +65,55 @@ jobs:
         shell: bash
         env:
           GUARD_RESULT: ${{ steps.guard-strict.outcome }}
-        run: test "$GUARD_RESULT" = failure
+          GUARD_DIAGNOSTICS: ${{ steps.guard-strict.outputs.diagnostics }}
+        run: |
+          test "$GUARD_RESULT" = failure
+          printf '%s\n' "$GUARD_DIAGNOSTICS" | grep -F 'newly Done: K417'
+          if python3 skills/inwoven/scripts/inwoven.py guard --root guard-fixture --base HEAD > guard-check.log 2>&1; then exit 1; else result=$?; fi
+          test "$result" = 1
+          grep -F 'newly Done: K417' guard-check.log
+  consumer:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.13'
+      - name: Generate consumer repo and synthetic base commit
+        shell: bash
+        run: |
+          mkdir -p consumer/docs/product
+          cp skills/inwoven/assets/*.md consumer/docs/product/
+          git -C consumer init
+          git -C consumer add .
+          git -C consumer -c user.name=Test -c user.email=test@example.invalid commit -m base
+      - uses: priaby/inwoven@v0
+        with:
+          root: consumer/docs/product
+          guard-base: HEAD
+          fail-on-guard: 'true'
+      - name: Generate an acceptance requiring confirmation
+        shell: bash
+        run: python -c 'from pathlib import Path; p=Path("consumer/docs/product/backlog.md"); p.write_text(p.read_text().replace("|  |  |  |  |", "|  |  | Done |  |"))'
+      - name: Capture the remote Action diagnostics
+        shell: bash
+        run: python3 tests/action_remote_probe.py
+      - uses: priaby/inwoven@v0
+        id: remote-guard
+        continue-on-error: true
+        with:
+          root: consumer/docs/product
+          guard-base: HEAD
+          fail-on-guard: 'true'
+      - name: Require remote strict guard rejection
+        shell: bash
+        env:
+          GUARD_RESULT: ${{ steps.remote-guard.outcome }}
+        run: |
+          test "$GUARD_RESULT" = failure
+          test "$(cat "$INWOVEN_REMOTE_STATUS")" = 1
+          grep -F 'newly Done: K417' "$INWOVEN_REMOTE_LOG"

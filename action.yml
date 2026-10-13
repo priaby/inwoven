@@ -10,15 +10,29 @@ inputs:
   fail-on-guard:
     description: Fail when guard reports a change
     default: 'false'
+outputs:
+  diagnostics:
+    description: Captured check and guard diagnostics
+    value: ${{ steps.format.outputs.diagnostics }}${{ steps.guard.outputs.diagnostics }}
 runs:
   using: composite
   steps:
     - name: Check format
+      id: format
       shell: bash
       env:
         INWOVEN_ROOT: ${{ inputs.root }}
-      run: python3 "$GITHUB_ACTION_PATH/skills/inwoven/scripts/inwoven.py" check --root "$INWOVEN_ROOT"
+      run: |
+        set +e
+        diagnostic_file="$RUNNER_TEMP/inwoven-check-$RANDOM.log"
+        python3 "$GITHUB_ACTION_PATH/skills/inwoven/scripts/inwoven.py" check --root "$INWOVEN_ROOT" >"$diagnostic_file" 2>&1
+        result=$?
+        cat "$diagnostic_file"
+        delimiter="inwoven_${RANDOM}_${RANDOM}"
+        { echo "diagnostics<<$delimiter"; cat "$diagnostic_file"; echo "$delimiter"; } >> "$GITHUB_OUTPUT"
+        exit "$result"
     - name: Guard requested changes
+      id: guard
       if: inputs.guard-base != ''
       shell: bash
       env:
@@ -27,8 +41,12 @@ runs:
         INWOVEN_FAIL: ${{ inputs.fail-on-guard }}
       run: |
         set +e
-        python3 "$GITHUB_ACTION_PATH/skills/inwoven/scripts/inwoven.py" guard --root "$INWOVEN_ROOT" --base "$INWOVEN_BASE"
+        diagnostic_file="$RUNNER_TEMP/inwoven-guard-$RANDOM.log"
+        python3 "$GITHUB_ACTION_PATH/skills/inwoven/scripts/inwoven.py" guard --root "$INWOVEN_ROOT" --base "$INWOVEN_BASE" >"$diagnostic_file" 2>&1
         result=$?
+        cat "$diagnostic_file"
+        delimiter="inwoven_${RANDOM}_${RANDOM}"
+        { echo "diagnostics<<$delimiter"; cat "$diagnostic_file"; echo "$delimiter"; } >> "$GITHUB_OUTPUT"
         if [ "$result" -ne 0 ]; then
           if [ "$INWOVEN_FAIL" = true ]; then exit "$result"; fi
           if [ "$result" -eq 1 ]; then

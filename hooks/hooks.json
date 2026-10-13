@@ -2,11 +2,11 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit",
+        "matcher": "Edit|Write|MultiEdit|apply_patch",
         "hooks": [
           {
             "type": "command",
-            "command": "command -v python3 >/dev/null 2>&1 || exit 0; command -v git >/dev/null 2>&1 || exit 0; python3 \"${CLAUDE_PLUGIN_ROOT}/skills/inwoven/scripts/inwoven.py\" hook",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh\"",
             "timeout": 30
           }
         ]

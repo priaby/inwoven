@@ -52,7 +52,7 @@ Write prefixes exactly, with capitals and the colon.
 Add `Waiting on: <condition>` when blocked; keep other tags.
 Do not mark Done, add Accepted or Reopened, reorder, delete or add items on your
 own initiative. On the person's explicit request, do exactly that and nothing more.
-To accept an In Progress item on request, write
+Ask whether close means accept or cancel. To accept or mark done an In Progress item on request, write
 `Done<br>Accepted: <today as YYYY-MM-DD> by Product Owner`, followed by existing
 tags in order. Example: `In Progress<br>Sprint: S2` becomes
 `Done<br>Accepted: 2026-10-13 by Product Owner<br>Sprint: S2`.
