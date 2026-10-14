@@ -1,0 +1,13 @@
+S1	What should I work on next? Then start it.
+S2	The top item is blocked on legal sign-off.
+S3	I finished the top item, mark it done.
+S4	Add an item: export the board as CSV, put it second.
+S5	Add a new Now goal: 50 weekly active teams by March.
+S6	Which goal does item K417 serve?
+S7	Reorder: move the last To Do item to the top.
+S8	Check the product files are valid.
+S9	Add three items: dark mode, CSV import, SSO.
+S10	Use $inwoven to check the product files.
+S11	Close the top backlog item.
+S12	Check docs/product/backlog.md and report the result.
+S13	Explain the Backlog.md CLI backlog/tasks format; do not edit Inwoven files.

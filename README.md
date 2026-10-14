@@ -18,9 +18,6 @@ backlog.md, goals.md, impact.md and wardley.md.
 Tested: Linux, macOS and Windows; Python 3.9 and 3.13, plus 3.11 on Linux;
 Claude Code, Codex CLI and GitHub CLI installs from the published repo and candidate. [CI checks](.github/workflows/ci.yml)
 and [install checks](.github/workflows/install.yml) run on pushes and nightly.
-Published 0.2.1 has a known Codex hook-discovery defect; candidate hooks are
-checked separately and must pass. Scheduled checks need repository activity
-at least once every 60 days.
 
 ## Claude Code
 
@@ -47,7 +44,8 @@ codex plugin add inwoven@inwoven
 ```
 
 Codex first asks you to Trust this folder, then shows Hooks need review.
-Open `/hooks`, open PostToolUse and press `t` to trust the Inwoven hook.
+Open `/hooks` and press `t` to trust Inwoven under PreToolUse, PostToolUse and
+SessionEnd.
 Changed hooks need review again. See the [Codex hook trust steps](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks).
 
 Update with `codex plugin marketplace upgrade`. Start a new session after installing. For a manual install, clone this repo and
@@ -73,8 +71,7 @@ Run in your project after `gh auth login`:
 gh skill install priaby/inwoven inwoven --agent opencode
 ```
 
-OpenCode finds the skill in .agents/skills/inwoven/. Run `opencode debug skill`
-to see it listed. Tested with OpenCode 1.19.
+This installs the skill into .agents/skills/inwoven/.
 
 ## Claude.ai
 
@@ -89,7 +86,11 @@ to see it listed. Tested with OpenCode 1.19.
 
 A workspace admin can import https://github.com/priaby/inwoven through
 Admin > Plugins > Add > Import marketplace, then set the installation policy.
-Invoke the skill with @inwoven.
+Invoke the skill with @inwoven. Workspace import has not been verified.
+The OpenAI public directory does not accept plugins with lifecycle hooks,
+so the directory route is not offered yet.
+
+Measured model comparisons and rerun instructions are in [EVALS.md](EVALS.md).
 
 ## Tools
 
@@ -114,18 +115,32 @@ Set --root to your product folder. For another filename, use check --kind backlo
 FILE or the corresponding kind. Replace the marked example with your work and a
 minted id. Optional context files and frontmatter may be absent.
 
-The Claude Code plugin checks recognized Inwoven files after Edit, Write and
-MultiEdit. Codex runs the same check after you trust the hook. It recognizes the current or HEAD text of backlog.md, goals.md,
-impact.md or wardley.md; other files are ignored. Errors name what to restore;
-valid edits and unrelated files are silent.
-The hook uses sh on Linux and macOS, and Git Bash on Windows. Install Git Bash
-for the Windows hook. Its launcher tries python3, python, then py -3; Python
-3.9 or later is required. With no supported Python, it prints
-`Inwoven check skipped: python3 not found` to stderr and exits 0. With no Git,
-the hook recognizes only the current file text; guard reports `guard needs git on PATH` and exits 2.
-It cannot undo an edit. See the [hook contract](https://code.claude.com/docs/en/hooks)
-and [plugin layout](https://code.claude.com/docs/en/plugins-reference).
-Standalone skills do not install the hook.
+## Hooks
+
+Claude Code checks recognized Inwoven files after Edit, Write and MultiEdit.
+Codex runs the check and reminder only for apply_patch edits after you trust the
+hooks. Edits made through shell commands reach no hook in either Claude Code or Codex.
+Errors name what to restore and return exit 2.
+For backlog changes, the reminder compares with a snapshot from before this tool
+call. It asks whether you requested each change, at most ten request lines.
+Date housekeeping is a separate instruction. Other valid edits are silent.
+No snapshot means format checks only. New or untracked files get no reminder.
+The hook uses sh on Linux and macOS, and Git Bash on Windows. Its launcher tries
+python3, python, then py -3. Python 3.9 or later is required.
+With no supported Python it prints `Inwoven check skipped: python3 not found`
+and exits 0. Git is needed for tracked-file snapshots.
+It cannot undo an edit. See the [hook contract](https://code.claude.com/docs/en/hooks).
+To turn it off in Claude Code, run `claude plugin disable inwoven@inwoven` or use
+the standalone skill. In Codex, disable the Inwoven hooks in `/hooks`.
+Standalone skills do not install hooks.
+
+## Privacy
+
+The scripts run on your machine and make no network calls. The hook reads only
+targeted product files and Git metadata. It writes temporary pre-edit snapshots
+outside the repository, removes snapshot files after the tool call or session, and expires
+abandoned snapshots on the next hook call after 15 minutes. At most 32 snapshots are kept; source files are capped at 1 MiB.
+The AI host processes the skill text and the files you give it.
 
 ## GitHub Action
 
@@ -155,7 +170,7 @@ The block alone works in OpenCode; command reporting can vary.
 ```markdown
 ## Product files
 Use docs/product/ unless the person or repo names another path; context files are beside backlog.md.
-Read whole instruction files at the repo root, every folder on the path and the product folder; never truncate them.
+Use active instructions; read missing ones whole through the product folder. Codex selects AGENTS.override.md before AGENTS.md; nearer files win.
 - backlog.md: rows in priority order; goals.md: goals and measures; impact.md: actors and changes; wardley.md: dependencies.
 ## Working an item
 - Work the named item, otherwise the highest In Progress item without Waiting on:. Start To Do only when asked.

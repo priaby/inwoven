@@ -57,7 +57,7 @@ Ask whether close means accept or cancel. To accept or mark done an In Progress 
 tags in order. Example: `In Progress<br>Sprint: S2` becomes
 `Done<br>Accepted: 2026-10-13 by Product Owner<br>Sprint: S2`.
 The suffix `by Product Owner` is the product's acceptance convention, treating
-the accepting person as that role. Do not substitute another name.
+the accepting person as that role. Report who requested acceptance; follow repo instructions if they name the acceptor.
 To reopen Done on request, remove every `Accepted:` tag and add `Reopened` first
 if absent; set the requested open status and preserve the other tags.
 Add every requested item, even if a similar title exists; report its near-duplicate
@@ -66,3 +66,11 @@ id. Completing work never implies Done.
 If the file has frontmatter, set `updated:` to today as YYYY-MM-DD; do not add
 frontmatter otherwise. Empty updated is absent; a nonempty value must be a real date.
 Preserve unrelated bytes, row order and ids except for the requested change.
+
+## Status examples
+
+Before: `In Progress<br>Sprint: S2`.
+Accept on request: `Done<br>Accepted: 2026-10-14 by Product Owner<br>Sprint: S2`.
+Reopen on request: `In Progress<br>Reopened<br>Sprint: S2`.
+Block: `In Progress<br>Sprint: S2<br>Waiting on: legal sign-off`.
+The example date is illustrative; use today's date and report who asked.

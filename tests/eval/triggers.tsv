@@ -1,0 +1,20 @@
+T01	yes	What should I work on next from the backlog?
+T02	yes	Add a backlog item for exporting the board as PDF, put it at the top.
+T03	yes	K417 is blocked waiting on the security review, note that.
+T04	yes	Which goal does item K417 serve?
+T05	yes	Move the Offline editing item above the Share a note by link item.
+T06	yes	Mark the top item done, I accept it.
+T07	yes	Check our product files are valid.
+T08	yes	Add a Next goal: halve onboarding time by June.
+T09	yes	Reopen the last Done item, it regressed.
+T10	yes	Start the highest priority story and tell me why it matters.
+T11	no	Fix the typo in src/app.py where the greeting says Helo.
+T12	no	Write a unit test for src/app.py.
+T13	no	Summarize what changed in the last three commits.
+T14	no	Create a GitHub issue template for bug reports.
+T15	no	Explain what a Wardley map is in two sentences, no files needed.
+T16	no	Add a TODO comment in src/app.py to handle empty input.
+T17	no	Draft release notes for version 1.2.
+T18	no	Set up a GitHub Actions workflow that runs pytest.
+T19	no	What is the difference between a product backlog and a sprint backlog, in general?
+T20	no	Rename the function in src/app.py to main.

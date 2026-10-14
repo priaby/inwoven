@@ -175,10 +175,11 @@ class PublicTests(unittest.TestCase):
                     self.assertIn(path.name + ':', result.stderr)
                     self.assertEqual(result.stdout, '')
                 path.write_bytes(before)
-        # Requested deletion stays silent instead of suggesting init.
+        # Deletion reports advisory context without suggesting init.
         (self.root / 'backlog.md').unlink()
         result = invoke('*** Begin Patch\n*** Delete File: backlog.md\n*** End Patch')
-        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, '', ''))
+        self.assertEqual((result.returncode, result.stderr), (0, ''))
+        self.assertEqual(result.stdout, '')  # No PreToolUse snapshot: format-only.
         # Moving a product file away also stays silent.
         goals = self.root / 'goals.md'
         goals.rename(self.root / 'old-goals.md')
@@ -235,7 +236,10 @@ class PublicTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(run('check', '--root', empty).returncode, 0)
         before = {p: p.read_bytes() for p in empty.iterdir()}
-        self.assertEqual(run('init', *KINDS, '--root', empty).returncode, 0)
+        kept = run('init', *KINDS, '--root', empty)
+        self.assertEqual(kept.returncode, 0)
+        self.assertNotIn('replace', kept.stdout)
+        self.assertNotIn('replace', run('init', '--root', self.root).stdout)
         self.assertEqual(before, {p: p.read_bytes() for p in empty.iterdir()})
         default = self.root / 'default'
         self.assertEqual(run('init', '--root', default).returncode, 0)
@@ -256,6 +260,80 @@ class PublicTests(unittest.TestCase):
         self.assertEqual(run('guard', '--base', 'missing-ref', '--root', self.root).returncode, 2)
         path.write_text(before.replace('K418', 'K417'), encoding='utf-8')
         self.assertEqual(run('guard', '--base', 'HEAD', '--root', self.root).returncode, 2)
+
+    def test_hook_advisory_changes_both_hosts(self):
+        git(self.root, 'init')
+        git(self.root, 'add', '.')
+        git(self.root, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'base')
+        path = self.root / 'backlog.md'
+        before = path.read_text(encoding='utf-8')
+        rows = before.splitlines()
+        k417 = next(line for line in rows if line.startswith('| K417.'))
+        k418 = next(line for line in rows if line.startswith('| K418.'))
+        variants = [
+            (before.replace('In Progress', 'Done<br>Accepted: 2026-10-14', 1), ['newly Done: K417', 'newly Accepted: K417']),
+            (before.replace('In Progress', 'In Progress<br>Reopened', 1), ['newly Reopened: K417']),
+            (before + '| Z999. Requested addition | | | | |\n', ['added: Z999']),
+            (before.replace(k418 + '\n', ''), ['deleted: K418']),
+            (before.replace(k417, 'PLACEHOLDER').replace(k418, k417).replace('PLACEHOLDER', k418), ['reordered: K418']),
+        ]
+        for text, expected in variants:
+            for tool in ('Edit', 'apply_patch'):
+                inp = {'file_path': str(path)} if tool == 'Edit' else {'command': '*** Begin Patch\n*** Update File: backlog.md\n@@\n-x\n+y\n*** End Patch'}
+                path.write_text(before, encoding='utf-8')
+                event = dict(session_id='public-advisory', tool_use_id='call', tool_name=tool, tool_input=inp, cwd=str(self.root))
+                run('hook', input=json.dumps(dict(event, hook_event_name='PreToolUse')))
+                path.write_text(text, encoding='utf-8')
+                result = run('hook', input=json.dumps(dict(event, hook_event_name='PostToolUse')))
+                self.assertEqual((result.returncode, result.stderr), (0, ''), result.stderr)
+                output = json.loads(result.stdout)
+                self.assertEqual(set(output), {'hookSpecificOutput'})
+                specific = output['hookSpecificOutput']
+                self.assertEqual(set(specific), {'hookEventName', 'additionalContext'})
+                self.assertEqual(specific['hookEventName'], 'PostToolUse')
+                for change in expected:
+                    action, ids = change.split(': ', 1)
+                    for ident in ids.split(', '): self.assertIn(ident, specific['additionalContext'])
+                self.assertIn('If not, undo it now.', specific['additionalContext'])
+                self.assertNotIn('Keep it only', specific['additionalContext'])
+                self.assertEqual(path.read_text(encoding='utf-8'), text)
+        path.write_text(before, encoding='utf-8')
+        result = run('hook', input=json.dumps(dict(tool_name='Edit', tool_input=dict(file_path=str(path)), cwd=str(self.root))))
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, '', ''))
+
+    def test_hook_caps_problems_and_changes(self):
+        path = self.root / 'backlog.md'
+        before = path.read_text(encoding='utf-8')
+        git(self.root, 'init')
+        git(self.root, 'add', '.')
+        git(self.root, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'base')
+        event = dict(session_id='cap', tool_use_id='call', tool_name='Edit', tool_input=dict(file_path=str(path)), cwd=str(self.root))
+        payload = json.dumps(dict(event, hook_event_name='PostToolUse'))
+        path.write_text(before + '| K417. Duplicate | | | | |\n' * 500, encoding='utf-8')
+        result = run('hook', input=payload)
+        self.assertEqual((result.returncode, result.stdout), (2, ''))
+        self.assertEqual(len(result.stderr.splitlines()), 12)
+        self.assertIn('490 more lines omitted', result.stderr)
+        self.assertLess(len(result.stderr), 5000)
+        path.write_text(before, encoding='utf-8')
+        run('hook', input=json.dumps(dict(event, hook_event_name='PreToolUse')))
+        path.write_text(before + ''.join('| Z' + str(n) + '. Added | | | | |\n' for n in range(100, 120)), encoding='utf-8')
+        result = run('hook', input=payload)
+        self.assertEqual(result.returncode, 0)
+        context = json.loads(result.stdout)['hookSpecificOutput']['additionalContext']
+        self.assertIn('more lines omitted', context)
+        self.assertEqual(len(context.splitlines()), 12)
+
+    def test_example_note_and_actionable_block_error(self):
+        target = self.root / 'created'
+        result = run('init', '--root', target)
+        self.assertIn('Next: replace', result.stdout)
+        note = run('check', '--root', target)
+        self.assertEqual(note.returncode, 0)
+        self.assertIn('note: example row', note.stderr)
+        path = self.root / 'backlog.md'
+        path.write_text(path.read_text(encoding='utf-8').replace('| K418.', '\n| K418.'), encoding='utf-8')
+        self.assertIn('join it to the table or remove the blank line', run('check', path).stderr)
 
     def test_hook_command(self):
         config = json.loads((TREE / 'hooks/hooks.json').read_text(encoding='utf-8'))

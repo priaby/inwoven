@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """Read and check Inwoven product files. Python 3.9+, standard library only.
 
-All commands preserve files except init, which creates missing files exclusively.
+Product files are preserved except init creates missing files. Hooks write disposable
+pre-edit snapshots outside the repository, then remove them.
 """
 import argparse
+import bisect
 import contextlib
 import io
+import hashlib
+import os
+import tempfile
+import time
 import shutil
 import datetime
 import json
@@ -124,7 +130,7 @@ def read_backlog(lines, errors):
                 errors.append((n + 1, "plain tag exceeds 20 characters"))
         result.append(dict(id=ident, title=title, status=status, tags=tags, cells=c, row=lines[n], line=n + 1))
     if any(ROW.match(line) for line in lines[end:]):
-        errors.append((end + 1, "second item block"))
+        errors.append((end + 1, "item row after the table ends; join it to the table or remove the blank line above it"))
     return result
 
 
@@ -394,6 +400,8 @@ def check(root, paths, kind=None):
                 raise ValueError("no " + path.name + " in " + str(path.parent) + "; pass --root <folder> or run init")
             data, problems = parse(path.read_text(encoding="utf-8"), detected)
             if detected == "backlog":
+                notes.extend((str(path), row["line"], "note: example row; replace it with your requested work and a minted id")
+                             for row in data if row["title"].startswith("Example:"))
                 notes.extend((str(path), row["line"], "note: unknown status " + repr(row["status"]) +
                               "; new edits use To Do, In Progress or Done")
                              for row in data if row["status"] not in STATUSES + ("Ready",))
@@ -550,6 +558,7 @@ def guard(root, base):
 def init(root, kinds):
     root.mkdir(parents=True, exist_ok=True)
     assets = Path(__file__).resolve().parent.parent / "assets"
+    created = set()
     for kind in kinds:
         path = root / (kind + ".md")
         try:
@@ -557,12 +566,15 @@ def init(root, kinds):
             template = re.sub(r"(?m)^updated: .*", "updated: " + datetime.date.today().isoformat(), template)
             with path.open("x", encoding="utf-8") as output:
                 output.write(template)
+            created.add(kind)
             print("Created " + str(path))
         except FileExistsError:
             print("Kept " + str(path))
-    if "backlog" in kinds:
+    if "backlog" in created:
         print("Next: replace the example row in " + str(root / "backlog.md") +
               "; mint the first real id with new-id, then run check.")
+    elif "backlog" in kinds:
+        print("Existing file kept; run check.")
     return 0
 
 
@@ -595,6 +607,157 @@ def hook_paths(event):
     return []
 
 
+# Per-call snapshots are local, private and disposable. session_id, tool_use_id
+# and hook_event_name are documented by both hosts:
+# https://code.claude.com/docs/en/hooks#common-input-fields
+# https://learn.chatgpt.com/docs/hooks#common-input-fields
+SNAPSHOT_BYTES = 1024 * 1024
+SNAPSHOT_LIMIT = 32
+SNAPSHOT_TTL = 900
+
+
+def snapshot_store(event):
+    session = event.get("session_id")
+    if not isinstance(session, str) or not session:
+        return None
+    owner = hashlib.sha256(str(Path.home()).encode()).hexdigest()[:16]
+    root = Path(tempfile.gettempdir()) / ("inwoven-hooks-" + owner)
+    # Never follow a substitute state directory or store inside the product repo.
+    if root.is_symlink():
+        return None
+    # TMPDIR can point into a different checkout from the edited product file.
+    # Reject every checkout before creating state, not only the target's repo.
+    resolved = root.resolve()
+    if any((parent / ".git").exists() for parent in (resolved, *resolved.parents)):
+        return None
+    root.mkdir(mode=0o700, exist_ok=True)
+    if os.name != "nt" and (root.stat().st_uid != os.getuid() or root.stat().st_mode & 0o077):
+        return None
+    now = time.time()
+    files = []
+    for folder in root.iterdir():
+        if folder.is_symlink() or not re.fullmatch(r"[a-f0-9]{64}", folder.name):
+            continue
+        for saved in folder.iterdir():
+            if saved.is_symlink() or not saved.is_file():
+                continue
+            if now - saved.stat().st_mtime > SNAPSHOT_TTL:
+                saved.unlink()
+            else:
+                files.append(saved)
+        if not any(folder.iterdir()):
+            folder.rmdir()
+    # Leave room for this pre call. Eviction loses a reminder, never user data.
+    for saved in sorted(files, key=lambda p: p.stat().st_mtime)[:-SNAPSHOT_LIMIT + 1]:
+        saved.unlink(missing_ok=True)
+    directory = root / hashlib.sha256(session.encode()).hexdigest()
+    if directory.is_symlink():
+        return None
+    directory.mkdir(mode=0o700, exist_ok=True)
+    return directory
+
+
+def snapshot_path(directory, path):
+    return directory / (hashlib.sha256(str(path.resolve()).encode()).hexdigest() + ".json")
+
+
+def save_snapshot(directory, path, event):
+    call = event.get("tool_use_id")
+    if not isinstance(call, str) or not call or len(call) > 256:
+        return
+    saved = snapshot_path(directory, path)
+    saved.unlink(missing_ok=True)  # A cancelled earlier call must never be reused.
+    if not path.is_file() or path.stat().st_size > SNAPSHOT_BYTES:
+        return
+    repo = Path(git(path.parent, "rev-parse", "--show-toplevel").strip())
+    relative = path.resolve().relative_to(repo.resolve()).as_posix()
+    if directory.resolve().is_relative_to(repo.resolve()):
+        return
+    # Untracked, ignored, unborn and newly staged files get format checks only.
+    git(repo, "ls-files", "--error-unmatch", "--", relative)
+    git(repo, "cat-file", "-e", "HEAD:" + relative)
+    text = path.read_text(encoding="utf-8")
+    if not recognizes(text, path.stem):
+        return
+    payload = json.dumps(dict(tool_use_id=event.get("tool_use_id"), text=text), ensure_ascii=False)
+    with saved.open("x", encoding="utf-8") as stream:
+        if os.name != "nt":
+            os.chmod(saved, 0o600)
+        stream.write(payload)
+
+
+def take_snapshot(directory, path, event):
+    if directory is None:
+        return None
+    saved = snapshot_path(directory, path)
+    if not saved.is_file() or saved.is_symlink() or saved.stat().st_size > SNAPSHOT_BYTES * 2 + 1024:
+        return None
+    try:
+        data = json.loads(saved.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        saved.unlink(missing_ok=True)
+        return None
+    if not isinstance(data, dict):
+        saved.unlink(missing_ok=True)
+        return None
+    # A different overlapping tool call must not consume this call's snapshot.
+    if data.get("tool_use_id") != event.get("tool_use_id"):
+        return None
+    saved.unlink()
+    return data.get("text") if isinstance(data.get("text"), str) else None
+
+
+def reminder(before_text, after_text):
+    before, errors = parse(before_text, "backlog")
+    after, issues = parse(after_text, "backlog") if after_text else ([], [])
+    if errors or issues:
+        return []
+    old, new = {r["id"]: r for r in before}, {r["id"]: r for r in after}
+    questions = []
+    def ask(ident, action):
+        questions.append("Did the person ask in this conversation for " + ident + " " + action + "? If not, undo it now.")
+    for ident, row in new.items():
+        was = old.get(ident)
+        if was is None:
+            ask(ident, "to be added")
+        if row["status"] == "Done" and (was is None or was["status"] != "Done"):
+            ask(ident, "to be Done")
+        for prefix in ("Accepted:", "Reopened"):
+            if any((t.startswith(prefix) if prefix.endswith(":") else t == prefix)
+                   and (was is None or t not in was["tags"]) for t in row["tags"]):
+                ask(ident, "to be " + prefix.rstrip(":"))
+    for ident in old:
+        if ident not in new:
+            ask(ident, "to be deleted")
+    common = old.keys() & new.keys()
+    before_order = [r["id"] for r in before if r["id"] in common]
+    after_order = [r["id"] for r in after if r["id"] in common]
+    # Unique ids reduce LCS to an increasing subsequence of old positions.
+    ranks = {ident: n for n, ident in enumerate(before_order)}
+    tails, indices, parents = [], [], []
+    for n, ident in enumerate(after_order):
+        position = bisect.bisect_left(tails, ranks[ident])
+        parents.append(indices[position - 1] if position else -1)
+        if position == len(tails):
+            tails.append(ranks[ident])
+            indices.append(n)
+        else:
+            tails[position], indices[position] = ranks[ident], n
+    unchanged = set()
+    cursor = indices[-1] if indices else -1
+    while cursor >= 0:
+        unchanged.add(after_order[cursor])
+        cursor = parents[cursor]
+    for ident in after_order:
+        if ident not in unchanged:
+            ask(ident, "to be reordered")
+    updated = metadata(after_text.splitlines()).get("updated", "")
+    today = datetime.date.today().isoformat()
+    if before_text != after_text and updated and updated != today:
+        questions.append("Set updated to " + today + " for this edit. This is date housekeeping; keep the person's changes.")
+    return questions
+
+
 def hook():
     # Infra and foreign-file events stay silent. Recognized errors use exit 2
     # for the Claude and Codex PostToolUse stderr feedback contract.
@@ -605,36 +768,101 @@ def hook():
         paths = hook_paths(event)
     except (ValueError, AttributeError, TypeError):
         return 0
-    failed = False
-    for value in dict.fromkeys(paths):
+    phase = event.get("hook_event_name", "PostToolUse")
+    # A patch move changes a path, not the person's row decisions. Check only
+    # the destination's format, even when it has a nonstandard basename.
+    moves = {}
+    if event.get("tool_name") == "apply_patch" and paths:
+        patch = (event.get("tool_input") or {}).get("command", "")
+        moves = dict(re.findall(r"(?m)^\*\*\* Update File: (.+)\r?\n\*\*\* Move to: (.+)$", patch))
+        moves = {source.strip(): target.strip() for source, target in moves.items()}
+    kinds = {k + ".md": k for k in FILES}
+    selected = {value: kinds.get(Path(value).name) for value in paths if Path(value).name in kinds}
+    for source, target in moves.items():
+        kind = kinds.get(Path(source).name) or kinds.get(Path(target).name)
+        selected.pop(source, None)
+        if kind:
+            selected[target] = kind
+    if not selected and phase != "SessionEnd":
+        return 0  # Foreign files never create, sweep or inspect the snapshot store.
+    try:
+        directory = snapshot_store(event)
+    except (OSError, ValueError):
+        directory = None  # Snapshot infrastructure never suppresses format checks.
+    if phase == "SessionEnd":
+        if directory is not None:
+            shutil.rmtree(directory)
+        return 0
+    errors, changes = [], []
+    for value, kind in selected.items():
         try:
             path = Path(value)
-            if path.name not in [k + ".md" for k in FILES]:
-                continue
             if not path.is_absolute():
                 path = Path(event.get("cwd", ".")) / path
-            if not path.exists():
-                continue  # Requested removals and moves must not suggest recreating files.
-            text = path.read_text(encoding="utf-8")
-            previous = ""
+            moved = value in moves.values()
+            if phase == "PreToolUse":
+                if directory is not None and not moved:
+                    save_snapshot(directory, path, event)
+                continue
+            try:
+                snapshot = take_snapshot(directory, path, event)
+            except OSError:
+                snapshot = None  # An unreadable snapshot still gets format checks.
+            if phase == "PostToolUseFailure":
+                continue
+            text = path.read_text(encoding="utf-8") if path.exists() else ""
+            previous = snapshot or ""
             try:
                 repo = Path(git(path.parent, "rev-parse", "--show-toplevel").strip())
                 relative = path.resolve().relative_to(repo.resolve()).as_posix()
-                previous = git(repo, "show", "HEAD:" + relative)
+                if not previous:
+                    # HEAD is used only to recognize a damaged format, never for reminders.
+                    previous = git(repo, "show", "HEAD:" + relative)
             except (OSError, ValueError, subprocess.CalledProcessError):
                 pass
-            kind = path.stem
-            if not recognizes(previous, kind) and not recognizes(text, kind):
+            if not moved and not recognizes(previous, kind) and not recognizes(text, kind):
                 continue
             diagnostics = io.StringIO()
-            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(diagnostics):
-                invalid = check(path.parent, [str(path)], kind)
+            invalid = 0
+            if path.exists():
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(diagnostics):
+                    invalid = check(path.parent, [str(path)], kind)
             if invalid:
-                print(diagnostics.getvalue(), end="", file=sys.stderr)
-                failed = True
-        except (OSError, UnicodeError, ValueError, AttributeError, TypeError):
+                errors.extend(diagnostics.getvalue().splitlines())
+            elif kind == "backlog" and snapshot is not None and not moved:
+                # A human edit between PreToolUse and PostToolUse is indistinguishable
+                # from this call's edit. Earlier uncommitted edits are preserved.
+                changes.extend(reminder(snapshot, text))
+        except (OSError, UnicodeError, ValueError, AttributeError, TypeError, subprocess.CalledProcessError):
             continue
-    return 2 if failed else 0
+    try:
+        if directory is not None and not any(directory.iterdir()):
+            directory.rmdir()
+    except OSError:
+        pass
+    def capped(lines):
+        # Bound both count and line width: a reordered import can be one huge line.
+        unique = list(dict.fromkeys(lines))
+        result = [line[:400] + ("..." if len(line) > 400 else "") for line in unique[:10]]
+        if len(unique) > 10:
+            result.append(str(len(unique) - 10) + " more lines omitted.")
+        return result
+    questions = [line for line in changes if line.startswith("Did the person")]
+    housekeeping = list(dict.fromkeys(line for line in changes if not line.startswith("Did the person")))
+    context = "\n".join(capped(questions) + housekeeping)
+    if errors:
+        print("\n".join(capped(errors)), file=sys.stderr)
+        print("Run inwoven.py check FILE for full diagnostics. Nothing was changed by the hook.", file=sys.stderr)
+        # Exit 2 feedback uses stderr; retain valid sibling reminders there too.
+        if context:
+            print(context, file=sys.stderr)
+        return 2
+    if changes:
+        # Both hosts document this non-blocking PostToolUse schema:
+        # https://code.claude.com/docs/en/hooks#posttooluse-decision-control
+        # https://learn.chatgpt.com/docs/hooks#posttooluse
+        print(json.dumps({"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": context}}))
+    return 0
 
 
 def main():
