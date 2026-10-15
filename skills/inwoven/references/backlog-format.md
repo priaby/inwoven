@@ -62,7 +62,7 @@ To reopen Done on request, remove every `Accepted:` tag and add `Reopened` first
 if absent; set the requested open status and preserve the other tags.
 Add each requested item that is new. If a title matches or nearly matches an existing
 one (a near-duplicate), do not add it; ask, naming the existing id, and still add the
-others. Completing work never implies Done.
+others. The last line of the reply is that question. Completing work never implies Done.
 
 If the file has frontmatter, set `updated:` to today as YYYY-MM-DD; do not add
 frontmatter otherwise. Empty updated is absent; a nonempty value must be a real date.

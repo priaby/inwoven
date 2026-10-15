@@ -59,6 +59,8 @@ Use the selected folder's path relative to the repo root as DIR below.
    add Reopened first if absent; keep other tags in order.
 7. Add each requested item that is new. If a title matches or nearly matches an existing
    one, do not add it: ask, naming the existing id, and still add the others.
+   If you held one back, the last line of your reply must be that question, after the
+   check and guard output: "D883 Dark mode already exists. Add another Dark mode item anyway?"
    Run `python3 <skill dir>/scripts/inwoven.py new-id --root DIR` first;
    never pick an id by hand. Use the person's words for title;
    Core Job, Context and Driver come only from their words, otherwise stay empty.
@@ -80,10 +82,6 @@ Use the selected folder's path relative to the repo root as DIR below.
     Exit 2 means the base or path needs fixing. Other tag or Context edits need no guard.
 11. Never commit unless the person or repo instructions ask. Put the item id in
     the subject; keep the host's Co-Authored-By trailer. Report completion with evidence.
-## Gotchas
-
-- Guard exit 1 reports changes; it does not undo them.
-- Keep reasoning in reports or commit bodies, never backlog tags.
 ## Tools and formats
 
 Resolve <skill dir> to the folder containing this SKILL.md; run scripts with --help first.

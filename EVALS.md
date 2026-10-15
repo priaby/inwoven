@@ -65,6 +65,32 @@ the model does unaided, not a failure to follow the skill.
 The per-run record, with the final messages and artifact hashes, is
 `tests/connectors/eval/results/2026-10-15.json` (private repository).
 
+### S9 follow-up: the question is the last line
+
+In the rerun above, Haiku run 1 and both Sol runs reported that Dark mode exists
+but did not end by asking; the held-back item was a statement in the middle of a
+report that closed with check and guard output. The skill now requires the last
+line of the reply to be the question, after the check and guard output, with an
+example naming the existing id. The grader now requires the last line of the final
+message to contain a question mark and the id D883. That is stricter than the
+rubric above, which accepted a question mark anywhere. Only the with-skill arm was
+rerun on 2026-10-15 against the reworded skill (v0.4.2): Haiku 3 runs, Sol 3 runs,
+Sonnet 2 runs, all completed turns, one wording, no iteration. The earlier runs
+and the without-skill arm are unchanged. Small sample, not a reliability estimate.
+
+| Model | S9 pass, last line asks: with | New rows with no invented text: with |
+|---|---:|---:|
+| Haiku 5.5 (`claude-haiku-5-5`) | 3/3 | 3/3 |
+| Sonnet 5.5 (`claude-sonnet-5-5`) | 2/2 | 2/2 |
+| Sol (`gpt-6.1-sol`, low reasoning) | 3/3 | 3/3 |
+
+An earlier identical batch of 8 passed 8 before a redundant bullet was cut from the
+skill to keep it within 104 lines; the numbers above are from the final text.
+Every run left Dark mode out, added only CSV import and SSO, and ended with the
+line "D883 Dark mode already exists. Add another Dark mode item anyway?", which
+copies the example in the skill. The record is the `round` r16 entries in the same
+results file.
+
 Discovery: Haiku, one run per query, installed as a plugin outside the fixture:
 10/10 should-trigger queries used the Skill tool; 0/10 near-misses used it.
 Discovery does not prove edit correctness.
