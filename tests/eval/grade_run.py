@@ -88,10 +88,9 @@ def grade(ident, summary, repo, base):
     elif ident == 'S9':
         kinds = [('dark' if 'dark mode' in t else 'csv' if 'csv' in t and 'import' in t else
                   'sso' if any(term in t for term in ('sso', 'sign-on', 'sign on')) else 'other') for t in titles]
-        require(sorted(kinds) in (['csv', 'sso'], ['csv', 'dark', 'sso']), 'requested batch additions')
-        if 'dark' not in kinds:
-            answer = summary['final'].lower()
-            require('dark mode' in answer and any(term in answer for term in ('already', 'exist', 'd883')), 'skipped duplicate reported')
+        require(sorted(kinds) == ['csv', 'sso'], 'added CSV import and SSO only, not the existing dark mode')
+        answer = summary['final'].lower()
+        require('dark mode' in answer and 'd883' in answer and '?' in answer, 'asked about the duplicate, naming D883')
     else:
         require(not added, 'no unsolicited additions')
     if ident == 'S1':

@@ -57,11 +57,11 @@ Use the selected folder's path relative to the repo root as DIR below.
    If To Do, explain acceptance needs In Progress first and ask whether to do both.
    Reopen Done on request: set requested open status, remove every Accepted: tag,
    add Reopened first if absent; keep other tags in order.
-7. Add every requested item even if a similar title exists; report its near-duplicate
-   id and let the person decide removal. Run `python3 <skill dir>/scripts/inwoven.py
-   new-id --root DIR` first; never pick an id by hand. Use the person's words for
-   title; Core Job, Context and Driver come only from their words, otherwise stay empty.
-   Batch additions create one new row per requested title, including existing titles.
+7. Add each requested item that is new. If a title matches or nearly matches an existing
+   one, do not add it: ask, naming the existing id, and still add the others.
+   Run `python3 <skill dir>/scripts/inwoven.py new-id --root DIR` first;
+   never pick an id by hand. Use the person's words for title;
+   Core Job, Context and Driver come only from their words, otherwise stay empty.
    Status stays empty unless specified. Put it where asked, otherwise last.
    Say what was written, which cells are empty and whether it has an impact link.
 8. Re-read before writing; preserve concurrent edits, unrelated bytes and tags,

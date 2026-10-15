@@ -60,8 +60,9 @@ The suffix `by Product Owner` is the product's acceptance convention, treating
 the accepting person as that role. Report who requested acceptance; follow repo instructions if they name the acceptor.
 To reopen Done on request, remove every `Accepted:` tag and add `Reopened` first
 if absent; set the requested open status and preserve the other tags.
-Add every requested item, even if a similar title exists; report its near-duplicate
-id. Completing work never implies Done.
+Add each requested item that is new. If a title matches or nearly matches an existing
+one (a near-duplicate), do not add it; ask, naming the existing id, and still add the
+others. Completing work never implies Done.
 
 If the file has frontmatter, set `updated:` to today as YYYY-MM-DD; do not add
 frontmatter otherwise. Empty updated is absent; a nonempty value must be a real date.

@@ -178,7 +178,7 @@ Use active instructions; read missing ones whole through the product folder. Cod
 - Do not mark Done, add Accepted or Reopened, reorder, delete or add items on your own initiative. On the person's explicit request in this conversation, do exactly that and nothing more.
 - Accept In Progress on request: `Done<br>Accepted: <YYYY-MM-DD> by Product Owner`, then existing tags in order.
 - Reopen Done on request: set the requested open status, remove Accepted, add Reopened first if absent, keep other tags.
-- Add every requested item, even near-duplicates; use the person's words and leave unprovided cells empty. Put it where asked or last; top means row 1.
+- Add each requested new item; if a title already exists, ask first, naming its id, and still add the others. Use the person's words and leave unprovided cells empty. Put it where asked or last; top means row 1.
 - Before adding, run `python3 <skill dir>/scripts/inwoven.py new-id --root DIR`; never pick ids by hand. Say what was written.
 - Re-read before writing; preserve concurrent edits, unrelated bytes and ids. Keep five cells per row and titles within 80 characters.
 - In existing files with frontmatter, set updated to today as YYYY-MM-DD on every edit, reorders included. Never add frontmatter.

@@ -18,7 +18,8 @@ outside the requested row change and the frontmatter `updated:` line. For S1,
 the rubric checks that goal context was read; it does not grade implementation
 correctness. S3 needs Done with the run
 day's acceptance date. S7 accepts the top of the table or the top of the To Do
-rows. S9 may skip the existing title if the agent says so.
+rows. On 2026-10-14 S9 accepted either adding the existing title or skipping it with a note;
+those S9 results are from the earlier rule and are superseded by the rerun below.
 The last column counts runs that left Core Job, Context and Driver empty when
 the request gave none. Without the skill, every model wrote its own Core Job
 and Context into new rows. Haiku and Sol also picked ids I204 and I924, which
@@ -35,6 +36,34 @@ was rerun once. The batch-addition rule was added after the first with-skill run
 The table uses that final with-arm and the original no-skill runs, regraded with
 the same user-level rubric. All completed turns in those selected arms are included. Failed Claude
 runner setups were fixed and rerun; they are not counted as behavioral outcomes.
+
+## S9 rerun under the ask-before-duplicate rule
+
+S9 was rerun on 2026-10-15 after the skill changed: when a requested title already
+exists, the agent asks before adding that one, naming the existing id, and still
+adds the others. The S9 numbers in the table above predate this rule. S1, S3, S4
+and S7 were not rerun. Two runs per model and arm, 12 runs, all completed turns.
+A run passes only if it added exactly CSV import and SSO, left everything else
+byte-identical except the `updated:` line, kept the formats valid, and its final
+message names Dark mode and D883 and asks a question (a question mark).
+This is a small sample, not a reliability estimate.
+
+| Model | S9 pass: with / without | New rows with no invented text: with / without |
+|---|---:|---:|
+| Haiku 5.5 (`claude-haiku-5-5`) | 1/2 / 0/2 | 2/2 / 0/2 |
+| Sonnet 5.5 (`claude-sonnet-5-5`) | 2/2 / 0/2 | 2/2 / 0/2 |
+| Sol (`gpt-6.1-sol`, low reasoning) | 0/2 / 0/2 | 2/2 / 0/2 |
+
+Why runs failed. With the skill, every run left Dark mode out and added both new
+rows with empty Core Job, Context and Driver. Haiku run 1 and both Sol runs did
+not ask: they said the item exists (Sol: "clarification is pending") without a
+question, so they fail the ask check. Without the skill, no run asked; all six
+skipped Dark mode and stated it exists, wrote their own Core Job, Context and
+Status, and some picked ids by hand; Sol's two files and Sonnet's second also
+failed the format check. The no-skill arm was not told the rule, so it shows what
+the model does unaided, not a failure to follow the skill.
+The per-run record, with the final messages and artifact hashes, is
+`tests/connectors/eval/results/2026-10-15.json` (private repository).
 
 Discovery: Haiku, one run per query, installed as a plugin outside the fixture:
 10/10 should-trigger queries used the Skill tool; 0/10 near-misses used it.
@@ -59,7 +88,8 @@ claude plugin eval . --scaffold --allow-tools Bash Edit Write --model haiku --ru
 Native cases cover S3, S4, S7, S9 and two near-misses, with the CLI's no-plugin
 baseline. The table comes from tests/eval/run_eval.py, not the native suite.
 Outputs include summary.json, events.jsonl, diff.patch and runs-table.md.
-The private receipt `tests/connectors/eval/results/2026-10-14.json` records every
+The private receipts `tests/connectors/eval/results/2026-10-14.json` (and
+`2026-10-15.json` for the S9 rerun) record every
 reported result, saved-run path and artifact hash, including discovery and override.
 Summary records infrastructure status, user outcome, invented-text and convention
 metrics separately. New runs record run_date; older receipts use the fixture
