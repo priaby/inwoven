@@ -82,6 +82,8 @@ Use the selected folder's path relative to the repo root as DIR below.
     Exit 2 means the base or path needs fixing. Other tag or Context edits need no guard.
 11. Never commit unless the person or repo instructions ask. Put the item id in
     the subject; keep the host's Co-Authored-By trailer. Report completion with evidence.
+12. Slice or split an item only when asked (references/backlog-format.md): slice one
+    row off (`backlog: slice <ID> off <ID>`); split into 2+ rows (`backlog: split <ID> into <ID>, <ID>`).
 ## Tools and formats
 
 Resolve <skill dir> to the folder containing this SKILL.md; run scripts with --help first.

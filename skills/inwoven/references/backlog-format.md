@@ -75,3 +75,38 @@ Accept on request: `Done<br>Accepted: 2026-10-14 by Product Owner<br>Sprint: S2`
 Reopen on request: `In Progress<br>Reopened<br>Sprint: S2`.
 Block: `In Progress<br>Sprint: S2<br>Waiting on: legal sign-off`.
 The example date is illustrative; use today's date and report who asked.
+
+## Slice off or split an item
+
+Only when the person asks to slice or split an item. Mint one id per new item with
+`new-id --count N`. Never for a Done item. Set `updated:` to today, then run check and
+guard: guard lists the added and deleted ids; say the person asked. Commit only when
+asked, as one commit with the host's Co-Authored-By trailer. The board's own save adds
+` (via backlog.works)` to the subject; you do not.
+
+**Slice off** (one new item, the original stays as it is). Leave the original row
+byte for byte. Add `| <id>. <title> |  |  |  |  |` (To Do, nothing copied) at the top
+of To Do: directly above the first open row that is To Do (not `In Progress`, not Done;
+a Status word the model does not know reads as To Do); with no To Do row, directly below
+the last `In Progress` row; with every row Done, at the end of the table. `In Progress`
+rows between To Do rows, and Done rows anywhere, do not move it. Subject
+`backlog: slice <ID> off <ID>` (the new id, then the original).
+
+**Split** (two or more new items, the original goes). Replace the original row, in its
+place, with one row per new item in the order given. Every new row takes the original's
+Status word (`In Progress` or `To Do`; empty stays empty), its `Sprint:` note and its
+Driver cell, and no other note (not `Ready`, `Reopened`, `Accepted:`, `Due:`,
+`Waiting on:` or a chip). The first new row also takes the original's Core Job and
+Context cells exactly as written, so no text is lost; the others have both empty. A
+legacy Status word (`Blocked`) is typed text too: put it as a note on the first new row
+only (`<br>Blocked`; at most 20 characters unless it starts with a known prefix such as
+`Waiting on:`), as the board does.
+The original id is retired: never reuse it. Then replace the original id with the new
+ids, in order and in the same place, wherever it is named: in `impact.md` (the leaf
+`- <ID>` becomes one leaf per new id) and in `wardley.md` (the Items cell entry
+becomes the new ids); a leaf or cell that is not just the id needs the person's call. If
+the same impact names the original twice, write the new ids once and drop the second leaf.
+Set `updated:` to today in each of `impact.md` and `wardley.md` you change.
+`goals.md` names no item ids. Subject `backlog: split <ID> into <ID>, <ID>` (the
+original, then the new ids in row order). Row history marks the original touched
+in the commit that names it; that is expected.

@@ -81,6 +81,12 @@ def allowed_text(value):
             not any(unicodedata.category(c) in ("Cc", "Cs", "Cf") or c in "\u2028\u2029" for c in value))
 
 
+def gap_text_ok(text):
+    """A Wardley gap: 1 to 80 characters with whitespace collapsed, no | , \\ or <br, no control or invisible characters."""
+    return (0 < len(text) <= 80 and not any(c in text for c in "|,\\") and "<br" not in text.lower() and
+            not any(unicodedata.category(c) in ("Cc", "Cs", "Cf") for c in text))
+
+
 def read_backlog(lines, errors):
     start = next((n for n, line in enumerate(lines) if ROW.match(line)), -1)
     if start == -1:
@@ -330,10 +336,18 @@ def read_wardley(lines, errors):
                 node["moving"] = moving
                 if moving and (moving not in STAGES or stage not in STAGES or STAGES.index(moving) <= STAGES.index(stage)):
                     errors.append((n, "Moving to must be a later stage"))
-                node["items"] = [s.strip() for s in c[5].split(",") if s.strip()]
-                for ident in node["items"]:
-                    if not re.fullmatch(ID, ident):
-                        errors.append((n, "invalid item id " + ident))
+                node["items"], node["gaps"] = [], []
+                for entry in (s.strip() for s in c[5].split(",") if s.strip()):
+                    if re.fullmatch(ID, entry):
+                        node["items"].append(entry)
+                    elif entry.startswith("GAP:"):
+                        text = " ".join(entry[4:].split())
+                        if not gap_text_ok(text):
+                            errors.append((n, "invalid gap text " + entry))
+                        elif text.casefold() not in (g.casefold() for g in node["gaps"]):
+                            node["gaps"].append(text)
+                    else:
+                        errors.append((n, "invalid item id " + entry))
             result.append(node)
     index = {key(n["name"]).casefold(): n for n in result}
     for node in result:
