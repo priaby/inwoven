@@ -41,6 +41,19 @@ class CompletionPoller:
         return False
 
 
+def turn_results(events):
+    """Result events of a Claude stream, one per completed turn."""
+    found = []
+    for line in Path(events).read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(d, dict) and d.get("type") == "result":
+            found.append(d)
+    return found
+
+
 def isolated_root(path):
     path = path.resolve()
     for parent in [path, *path.parents]:
@@ -81,20 +94,23 @@ def main():
             if not line.strip():
                 continue
             parts = line.split("\t")
-            if len(parts) not in (2, 3):
-                raise ValueError("scenario TSV needs id, prompt and optional repeat count")
+            if len(parts) not in (2, 3, 4):
+                raise ValueError("scenario TSV needs id, prompt, optional repeat count and optional follow-up prompt")
             ident, prompt = parts[:2]
             if args.triggers:
                 if len(parts) != 3 or parts[1] not in ("yes", "no"):
                     raise ValueError("trigger TSV needs id, yes/no and prompt")
                 prompt = parts[2]
-            repeats = args.repeat if args.triggers else int(parts[2]) if len(parts) == 3 and parts[2] else args.repeat
+            repeats = args.repeat if args.triggers else int(parts[2]) if len(parts) >= 3 and parts[2] else args.repeat
+            followup = parts[3] if len(parts) == 4 and not args.triggers else ""
             if repeats < 1:
                 raise ValueError("scenario repeat counts must be positive")
             if not ident or any(c not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-" for c in ident):
                 raise ValueError("scenario ids must be safe directory names")
             if not args.select or ident in args.select.split():
-                scenarios.append((ident, prompt, repeats))
+                if followup and "codex" in configs:
+                    raise ValueError("follow-up turns resume a Claude session; codex does not support them")
+                scenarios.append((ident, prompt, repeats, followup))
         if not scenarios or len({s[0] for s in scenarios}) != len(scenarios):
             raise ValueError("no selected scenarios or duplicate scenario ids")
     except (OSError, ValueError) as exc:
@@ -103,7 +119,7 @@ def main():
     if not arms or any(a not in ("with", "without") for a in arms):
         p.error("arms must be with or without")
     namespace = uuid.uuid4().hex[:12]
-    def job(repeat, config, ident, prompt, arm):
+    def job(repeat, config, ident, prompt, arm, followup=""):
         result_dir = out / ("run" + str(repeat)) / (config if arms == ["with"] else config + "-" + arm) / ident
         result_dir.mkdir(parents=True, exist_ok=False)
         repo = Path(tempfile.mkdtemp(prefix=namespace + "-", dir=work))
@@ -115,6 +131,9 @@ def main():
         def git(*argv):
             return subprocess.run(["git", "-C", str(repo), "-c", "user.name=eval", "-c", "user.email=eval@example.invalid", *argv],
                                   capture_output=True, text=True, check=True).stdout
+        if not args.triggers:
+            from learnings_eval import apply as apply_learnings_case
+            apply_learnings_case(ident, repo)
         git("init", "-b", "main")
         git("add", "-A")
         git("commit", "-m", "fixture")
@@ -126,7 +145,7 @@ def main():
                 git("commit", "-m", "add inwoven skill")
             plugin = Path(tempfile.mkdtemp(prefix=namespace + "-", dir=work))
             shutil.copytree(skill.parent.parent, plugin, dirs_exist_ok=True,
-                            ignore=shutil.ignore_patterns("__pycache__"))
+                            ignore=shutil.ignore_patterns("__pycache__", "tests", "evals"))
         settings = None
         runtime_env = dict(os.environ)
         if config != "codex":
@@ -154,37 +173,49 @@ def main():
             argv += ["-c", "model_reasoning_effort=" + os.environ.get("CODEX_EFFORT", "low"),
                      "--dangerously-bypass-approvals-and-sandbox", "--json", "-C", str(repo), prompt]
         else:
-            argv = ["claude", "-p", "--model", config, "--permission-mode", "bypassPermissions",
+            head = ["claude", "-p", "--model", config, "--permission-mode", "bypassPermissions",
                     "--output-format", "stream-json", "--verbose", "--setting-sources", "project",
                     "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}"]
             if arm == "with":
-                argv += ["--plugin-dir", str(plugin)]
-            argv += ["--", prompt]
+                head += ["--plugin-dir", str(plugin)]
+            argv = head + ["--", prompt]
         rc, infra = None, ""
-        with events.open("w") as stdout, errors.open("w") as stderr:
-            try:
-                proc = subprocess.Popen(argv, cwd=repo, stdout=stdout, stderr=stderr, stdin=subprocess.DEVNULL, start_new_session=True, env=runtime_env)
-                start, done_at = time.monotonic(), None
-                poller = CompletionPoller()
-                while proc.poll() is None:
-                    now = time.monotonic()
-                    if config == "codex" and poller.completed(events):
-                        done_at = done_at or now
-                    if now - start > args.timeout or (done_at and now - done_at > 3):
-                        if not done_at:
-                            infra = "timeout"
-                        os.killpg(proc.pid, signal.SIGTERM)
-                        try:
-                            proc.wait(timeout=3)
-                        except subprocess.TimeoutExpired:
-                            os.killpg(proc.pid, signal.SIGKILL)
-                        break
-                    time.sleep(0.1)
-                rc = proc.wait()
-            except OSError as exc:
-                infra = str(exc)
+        def run_turn(argv, mode):
+            """Run one agent process to its end; events append to events.jsonl after the first turn."""
+            nonlocal rc, infra
+            with events.open(mode) as stdout, errors.open(mode) as stderr:
+                try:
+                    proc = subprocess.Popen(argv, cwd=repo, stdout=stdout, stderr=stderr, stdin=subprocess.DEVNULL, start_new_session=True, env=runtime_env)
+                    start, done_at = time.monotonic(), None
+                    poller = CompletionPoller()
+                    while proc.poll() is None:
+                        now = time.monotonic()
+                        if config == "codex" and poller.completed(events):
+                            done_at = done_at or now
+                        if now - start > args.timeout or (done_at and now - done_at > 3):
+                            if not done_at:
+                                infra = "timeout"
+                            os.killpg(proc.pid, signal.SIGTERM)
+                            try:
+                                proc.wait(timeout=3)
+                            except subprocess.TimeoutExpired:
+                                os.killpg(proc.pid, signal.SIGKILL)
+                            break
+                        time.sleep(0.1)
+                    rc = proc.wait()
+                except OSError as exc:
+                    infra = str(exc)
+        run_turn(argv, "w")
+        if followup and not infra:
+            session = next((r.get("session_id") for r in reversed(turn_results(events)) if r.get("session_id")), None)
+            if session:
+                run_turn(head + ["--resume", session, "--", followup], "a")
+            else:
+                infra = "no session id to resume for the follow-up turn"
         summary = summarize("codex" if config == "codex" else "claude", events, repo, base, checker, skill)
         summary.update(run_date=datetime.date.today().isoformat(), base=base, arm=arm, model=model if config == "codex" else config, agent_exit_code=rc, worktree=str(repo), repeat=repeat, config=config, scenario=ident)
+        if config != "codex":
+            summary["turn_finals"] = [r.get("result") or "" for r in turn_results(events)]
         if infra:
             summary.update(status="infra_failure", infra_reason=infra)
         elif summary["status"] == "infra_failure":
@@ -196,7 +227,8 @@ def main():
             expected = next(line.split("\t")[1] == "yes" for line in args.scenarios.read_text().splitlines() if line.startswith(ident + "\t"))
             summary["behavior"] = {"pass": summary["skill_tool"] == expected, "expected_skill": expected, "actual_skill": summary["skill_tool"]}
         else:
-            summary["behavior"] = grade(ident, summary, repo, base)
+            from learnings_eval import CASES as learnings_cases, grade as grade_learnings
+            summary["behavior"] = grade_learnings(ident, summary, repo, base) if ident in learnings_cases else grade(ident, summary, repo, base)
         (result_dir / "summary.json").write_text(json.dumps(summary, indent=1))
         git("add", "-A", "-N")
         (result_dir / "diff.patch").write_text(git("diff", base))
@@ -204,8 +236,8 @@ def main():
         return summary
     results = []
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        pending = {pool.submit(job, r, c, ident, prompt, arm): (r, c, ident)
-                   for ident, prompt, repeats in scenarios for r in range(1, repeats + 1) for c in configs for arm in arms}
+        pending = {pool.submit(job, r, c, ident, prompt, arm, followup): (r, c, ident)
+                   for ident, prompt, repeats, followup in scenarios for r in range(1, repeats + 1) for c in configs for arm in arms}
         for future in as_completed(pending):
             try:
                 results.append(future.result())

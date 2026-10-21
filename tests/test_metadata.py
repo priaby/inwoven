@@ -61,8 +61,8 @@ class MetadataTests(unittest.TestCase):
         self.assertEqual(fields['license'], 'MIT')
         self.assertTrue(1 <= len(fields['description']) <= 200)
         self.assertTrue(text.splitlines()[2].startswith('description: "'))
-        self.assertLessEqual(len(text.splitlines()), 104)
-        self.assertLessEqual(len(text.encode('utf-8')), 8000)
+        self.assertLessEqual(len(text.splitlines()), 120)
+        self.assertLessEqual(len(text.encode('utf-8')), 8850)
         for malformed in ('description: a: b', 'description: text # comment', 'name: a\nname: b', 'description: [bad'):
             with self.assertRaises(ValueError): frontmatter('---\n' + malformed + '\n---\n')
 

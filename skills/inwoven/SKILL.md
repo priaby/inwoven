@@ -18,6 +18,7 @@ workflow difference. Keep the file formats in the references.
 - goals.md: goals and measures, with horizons Now, Next and Later.
 - impact.md: goal maps of actors, changes and item ids.
 - wardley.md: users, components, dependencies and linked item ids.
+- learnings.md: lessons the person approved, with check, item and date.
 
 Resolve the backlog from the person's named path, then repo instructions, otherwise
 look in docs/product/ in the current folder, then the repo root. Ask if several
@@ -43,8 +44,9 @@ Use the selected folder's path relative to the repo root as DIR below.
    Read linked goal and measure, actor and change, and Wardley components; read
    maps for goals not yet achieved first. Goals, impact and Wardley are optional.
    For missing goal links lead with "No recorded goal link"; suggestions are proposals.
-   Say missing context once and continue. Context exits 0 for missing optional
-   links, 1 for a missing row or invalid file.
+   Say missing context once and continue. Context also prints each live lesson: say which
+   apply to this item or that none do; never apply an expired one.
+   Context exits 0 for missing optional links or a broken learnings.md, 1 for a missing row or invalid file.
 5. Add `Waiting on: <condition>` when blocked; remove it when resolved; keep other tags.
    Status is To Do, In Progress or Done; empty means To Do. Tags follow `<br>`.
    Known valued prefixes are Sprint:, Due:, Accepted: and Waiting on:.
@@ -57,6 +59,7 @@ Use the selected folder's path relative to the repo root as DIR below.
    If To Do, explain acceptance needs In Progress first and ask whether to do both.
    Reopen Done on request: set requested open status, remove every Accepted: tag,
    add Reopened first if absent; keep other tags in order.
+   Never add, edit, renew or delete a lesson without a yes in this conversation. Delete an expired row only when the person names it.
 7. Add each requested item that is new. If a title matches or nearly matches an existing
    one, do not add it: ask, naming the existing id, and still add the others.
    If you held one back, the last line of your reply must be that question, after the
@@ -76,7 +79,7 @@ Use the selected folder's path relative to the repo root as DIR below.
    impacts. Replace a `GAP:` leaf only when told the item closes that gap.
 10. After every edit, including code while starting an item, run `python3 <skill dir>/scripts/inwoven.py check --root DIR`
     and relevant repo checks. List check and guard as ran / not needed / could not run;
-    name each command, exit code and printed output. After acceptance or row changes,
+    name each command, exit code and printed output. After acceptance, row or lesson changes,
     run `python3 <skill dir>/scripts/inwoven.py guard --base HEAD --root DIR`.
     Exit 1 is expected: quote its lines and say the person asked for them; do not undo them.
     Exit 2 means the base or path needs fixing. Other tag or Context edits need no guard.
@@ -84,6 +87,18 @@ Use the selected folder's path relative to the repo root as DIR below.
     the subject; keep the host's Co-Authored-By trailer. Report completion with evidence.
 12. Slice or split an item only when asked (references/backlog-format.md): slice one
     row off (`backlog: slice <ID> off <ID>`); split into 2+ rows (`backlog: split <ID> into <ID>, <ID>`).
+13. Lessons. At most one per item per conversation, and only when a later agent would
+    repeat the mistake without it: non-obvious, durable, not clear from code, tests or a
+    check. Propose it when you report the item complete and when the person accepts it,
+    unless they already answered. First compare with every row of learnings.md, those
+    context prints and the file itself: the same or a close meaning, or a printed lesson
+    expiring that applied to this work, gets a renewal offer (quote the row, new Date, same
+    text), not a new lesson. Otherwise show the full row (Lesson, Enforced by, Item, Date =
+    today) as a table row in the same reply; never ask without it. The question is the last
+    line: "Add this lesson?" or "Renew this lesson?". After yes write exactly the row shown,
+    byte for byte, then run check and guard. An edit by the person means show the row again
+    and ask again. With a step 7 question too, one question per line, the lesson question last.
+    At 30 live lessons name the one to retire with the new row. Name an Enforced by check only if it exists.
 ## Tools and formats
 
 Resolve <skill dir> to the folder containing this SKILL.md; run scripts with --help first.
@@ -93,7 +108,7 @@ never claim a pass. `check [FILE...]` skips missing optional files; for another 
 use `check --kind backlog FILE` or the corresponding kind.
 `new-id --count N` mints random unused ids; `context ID` reads linked context.
 `guard --base GIT_REF` needs git on PATH; it reports changes and never edits.
-`init [KIND...] --root DIR` creates missing files; default backlog only. It never overwrites.
+`init [KIND...] --root DIR` creates missing files; kinds backlog, goals, impact, wardley, learnings; default backlog. It never overwrites.
 Replace the example only in a newly created file. Never add frontmatter to existing files.
 New files have title and updated frontmatter; nonempty updated must be a real calendar date.
 Read only the matching reference when editing that kind of product file:
@@ -101,4 +116,5 @@ Read only the matching reference when editing that kind of product file:
 - [Goals format](references/goals-format.md)
 - [Impact format](references/impact-format.md)
 - [Wardley format](references/wardley-format.md)
+- [Learnings format](references/learnings-format.md)
 If a file uses another format, report the difference before applying these rules.

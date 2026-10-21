@@ -13,7 +13,8 @@ See the [backlog format](skills/inwoven/references/backlog-format.md) and this r
 
 The [Inwoven skill](skills/inwoven/SKILL.md) tells an agent how to pick an item,
 read why it matters and check the product files. It includes references for
-backlog.md, goals.md, impact.md and wardley.md.
+backlog.md, goals.md, impact.md, wardley.md and learnings.md. The last holds lessons
+your team approved; the agent proposes one line at a time and writes it only after your yes.
 
 Tested: Linux, macOS and Windows; Python 3.9 and 3.13, plus 3.11 on Linux;
 Claude Code, Codex CLI and GitHub CLI installs from the published repo and candidate. [CI checks](.github/workflows/ci.yml)
@@ -107,10 +108,11 @@ Use that script path for these commands:
 |---|---|---|
 | check [FILE...] | After edits | Success summary or file:line errors |
 | new-id --count N | Before requested additions | Random unused ids |
-| context ID | Before starting or answering which goal an item serves | Row, goals, measures and maps; missing links |
-| guard --base HEAD | After requested row or acceptance changes, before committing | Changes to confirm and stale updated dates; exit 1 if found, 2 if comparison failed |
+| context ID | Before starting or answering which goal an item serves | Row, goals, measures and maps; missing links; live lessons |
+| guard --base HEAD | After requested row, lesson or acceptance changes, before committing | Changes to confirm and stale updated dates; exit 1 if found, 2 if comparison failed |
 | init [KIND...] | When asked to create files; default backlog only | Created or kept paths and next step |
 
+Add --today YYYY-MM-DD to check, context or guard to fix the date in tests.
 Set --root to your product folder. For another filename, use check --kind backlog
 FILE or the corresponding kind. Replace the marked example with your work and a
 minted id. Optional context files and frontmatter may be absent.
@@ -123,8 +125,10 @@ hooks. Edits made through shell commands reach no hook in either Claude Code or 
 Errors name what to restore and return exit 2.
 For backlog changes, the reminder compares with a snapshot from before this tool
 call. It asks whether you requested each change, at most ten request lines.
+For learnings.md it asks, for each added, renewed, edited or deleted lesson, whether you said yes.
 Date housekeeping is a separate instruction. Other valid edits are silent.
-No snapshot means format checks only. New or untracked files get no reminder.
+No snapshot means format checks only. New or untracked files get no reminder, except
+learnings.md, which is compared with HEAD or with an empty file.
 The hook uses sh on Linux and macOS, and Git Bash on Windows. Its launcher tries
 python3, python, then py -3. Python 3.9 or later is required.
 With no supported Python it prints `Inwoven check skipped: python3 not found`

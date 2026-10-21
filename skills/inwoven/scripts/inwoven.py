@@ -30,13 +30,18 @@ HEADERS = {
     "goals": "| Goal | Measure | Horizon | Set | Achieved |",
     "users": "| User | Stage | Needs |",
     "components": "| Component | Stage | Row | Moving to | Depends on | Items |",
+    "learnings": "| Lesson | Enforced by | Item | Date |",
 }
 LEGACY = "| Goal | Set | Achieved |"
 PREFIXES = ("Sprint:", "Due:", "Accepted:", "Waiting on:")
 STATUSES = ("", "To Do", "In Progress", "Done")
 HORIZONS = ("Now", "Next", "Later")
 STAGES = ("genesis", "custom", "product", "commodity")
-FILES = ("backlog", "goals", "impact", "wardley")
+FILES = ("backlog", "goals", "impact", "wardley", "learnings")
+LIVE_DAYS = 90
+LIVE_CAP = 30
+SOON_DAYS = 14
+EXPIRED_NOTE_FROM = 30
 
 
 def cells(line):
@@ -197,6 +202,114 @@ def read_goals(lines, errors):
             errors.append((number, "open goals must be first, in Now, Next, Later order"))
         rank = current
     return result
+
+
+def plural(count, word):
+    return str(count) + " " + word + ("" if count == 1 else "s")
+
+
+def as_today(today):
+    if today is None:
+        return datetime.date.today()
+    return datetime.date.fromisoformat(today) if isinstance(today, str) else today
+
+
+def read_learnings(lines, errors, today=None):
+    """Rows that parse (Lesson and Date usable) are returned even when another cell or row is wrong."""
+    today = as_today(today)
+    header = HEADERS["learnings"]
+    start = next((n for n, line in enumerate(lines) if line.rstrip() == header), -1)
+    if start < 0 or start + 1 >= len(lines) or not separator(lines[start + 1], 4):
+        if start >= 0:
+            errors.append((start + 1, "restore separator `|---|---|---|---|` after header `" + header + "`"))
+        else:
+            errors.append((1, "restore learnings header `" + header + "` and separator `|---|---|---|---|`"))
+        return []
+    result, seen, live, n = [], {}, 0, start + 2
+    while n < len(lines) and lines[n].startswith("|"):
+        c, number = cells(lines[n]), n + 1
+        n += 1
+        if len(c) != 4:
+            errors.append((number, "expected 4 cells"))
+            continue
+        lesson, enforced, item, date = c
+        if not allowed_text(lesson):
+            errors.append((number, "Lesson must be 1 to 200 characters on one line, no `|` or `<br>`"))
+        if enforced and not allowed_text(enforced):
+            errors.append((number, "Enforced by must be at most 200 characters on one line, no `|` or `<br>`"))
+        if item and not re.fullmatch(ID, item):
+            errors.append((number, "Item must be empty or one item id such as K417"))
+        if not iso(date):
+            errors.append((number, "Date must be a real ISO date, YYYY-MM-DD"))
+        if not allowed_text(lesson) or not iso(date):
+            continue
+        age = (today - datetime.date.fromisoformat(date)).days
+        row = dict(lesson=lesson, enforced=enforced, item=item, date=date, line=number, age=age,
+                   live=bool(enforced) or age <= LIVE_DAYS, future=age < 0,
+                   left=None if enforced else LIVE_DAYS - age)
+        folded = key(lesson).casefold()
+        if folded in seen:
+            errors.append((number, "duplicate lesson, also line " + str(seen[folded]) +
+                           "; renew that row's Date instead"))
+        else:
+            seen[folded] = number
+        if row["live"]:
+            live += 1
+            if live == LIVE_CAP + 1:
+                errors.append((number, str(live) + " live lessons; maximum " + str(LIVE_CAP) +
+                               ". Ask the person which lesson to retire"))
+        result.append(row)
+    if n < len(lines) and lines[n].lstrip().startswith("|"):
+        errors.append((n + 1, "table row must start with `|` in column 1"))
+    for later in range(n, len(lines)):
+        if lines[later].startswith("|"):
+            errors.append((later + 1, "second learnings table"))
+            break
+    return result
+
+
+def learning_notes(rows, backlog_ids=None):
+    """(line, message) notes for parsed learnings rows; never errors."""
+    notes = []
+    for row in rows:
+        if row["future"]:
+            notes.append((row["line"], "note: Date is after today; read as live"))
+        if backlog_ids is not None and row["item"] and row["item"] not in backlog_ids:
+            notes.append((row["line"], "note: item " + row["item"] + " is not in backlog.md"))
+        if row["live"] and row["left"] is not None and 0 <= row["left"] <= SOON_DAYS:
+            expires = datetime.date.fromisoformat(row["date"]) + datetime.timedelta(days=LIVE_DAYS + 1)
+            notes.append((row["line"], "note: expires in " + plural(row["left"] + 1, "day") + " on " +
+                          expires.isoformat() + "; renew it or name a check"))
+    expired = sum(1 for row in rows if not row["live"])
+    if expired > EXPIRED_NOTE_FROM:
+        notes.append((1, "note: " + str(expired) + " expired lessons; ask the person whether to delete the oldest"))
+    return notes
+
+
+def lesson_changes(before, after):
+    """(action, lesson) per changed row: added, renewed, edited, deleted. Rows pair by folded lesson,
+    then by equal other cells (a reworded lesson)."""
+    old = {key(r["lesson"]).casefold(): r for r in before}
+    new = {key(r["lesson"]).casefold(): r for r in after}
+    changes = []
+    for folded, row in new.items():
+        was = old.get(folded)
+        if was is None or (was["lesson"], was["enforced"], was["item"], was["date"]) == (
+                row["lesson"], row["enforced"], row["item"], row["date"]):
+            continue
+        same = (was["lesson"], was["enforced"], was["item"]) == (row["lesson"], row["enforced"], row["item"])
+        changes.append(("renewed" if same else "edited", row["lesson"]))
+    gone = [r for k, r in old.items() if k not in new]
+    fresh = [r for k, r in new.items() if k not in old]
+    for row in list(fresh):
+        twin = next((g for g in gone if (g["enforced"], g["item"], g["date"]) == (row["enforced"], row["item"], row["date"])), None)
+        if twin:
+            gone.remove(twin)
+            fresh.remove(row)
+            changes.append(("edited", row["lesson"]))
+    changes.extend(("added", r["lesson"]) for r in fresh)
+    changes.extend(("deleted", r["lesson"]) for r in gone)
+    return changes
 
 
 def body_start(lines):
@@ -381,26 +494,36 @@ def read_wardley(lines, errors):
     return result
 
 
-def parse(text, kind):
+def parse(text, kind, today=None):
     # Wardley alone permits a BOM. Impact splits only CR/LF, as its lists do.
     if kind == "wardley":
         if text.startswith("\ufeff"):
             text = text[1:]
     lines = re.split(r"\r\n|\r|\n", text) if kind in ("impact", "wardley") else text.splitlines()
     errors = []
-    data = globals()["read_" + kind](lines, errors)
+    data = read_learnings(lines, errors, today) if kind == "learnings" else globals()["read_" + kind](lines, errors)
     meta = metadata(lines)
     if meta.get("updated") and not iso(meta["updated"]):
         errors.append((1, "updated must be a real date in YYYY-MM-DD form"))
     return data, errors
 
 
-def load(root, kind):
+def load(root, kind, today=None):
     path = root / (kind + ".md")
-    return parse(path.read_text(encoding="utf-8"), kind) if path.exists() else (None, [])
+    return parse(path.read_text(encoding="utf-8"), kind, today) if path.exists() else (None, [])
 
 
-def check(root, paths, kind=None):
+def backlog_ids(folder):
+    path = Path(folder) / "backlog.md"
+    if not path.is_file():
+        return None
+    try:
+        return {r["id"] for r in read_backlog(path.read_text(encoding="utf-8").splitlines(), [])}
+    except (OSError, UnicodeError):
+        return None
+
+
+def check(root, paths, kind=None, today=None):
     errors, checked, notes = [], [], []
     targets = [Path(p) for p in paths] if paths else [root / (k + ".md") for k in FILES]
     for path in targets:
@@ -409,10 +532,12 @@ def check(root, paths, kind=None):
         try:
             detected = kind or path.stem
             if detected not in FILES:
-                raise ValueError("use --kind backlog, goals, impact or wardley for another filename")
+                raise ValueError("use --kind backlog, goals, impact, wardley or learnings for another filename")
             if not path.exists():
                 raise ValueError("no " + path.name + " in " + str(path.parent) + "; pass --root <folder> or run init")
-            data, problems = parse(path.read_text(encoding="utf-8"), detected)
+            data, problems = parse(path.read_text(encoding="utf-8"), detected, today)
+            if detected == "learnings":
+                notes.extend((str(path), n, message) for n, message in learning_notes(data, backlog_ids(path.parent)))
             if detected == "backlog":
                 notes.extend((str(path), row["line"], "note: example row; replace it with your requested work and a minted id")
                              for row in data if row["title"].startswith("Example:"))
@@ -459,20 +584,36 @@ def new_ids(root, count):
     return 0
 
 
-def context(root, ident):
+def lesson_line(row):
+    text = "Lesson: " + row["lesson"]
+    if row["enforced"]:
+        text += " [enforced by " + row["enforced"] + "]"
+    text += " (" + (row["item"] or "no item") + ", " + row["date"] + ")"
+    if row["live"] and row["left"] is not None and 0 <= row["left"] <= SOON_DAYS:
+        text += " expires in " + plural(row["left"] + 1, "day")
+    return text
+
+
+def context(root, ident, today=None):
     if not re.fullmatch(ID, ident):
         raise ValueError("invalid item id " + repr(ident) + "; use one allowed letter and three digits, for example K417")
     if not root.is_dir():
         raise ValueError("no product folder " + str(root) + "; pass --root <folder> or run init")
     documents = {}
     for kind in FILES:
-        data, problems = load(root, kind)
+        try:
+            data, problems = load(root, kind, today)
+        except (OSError, UnicodeError) as exc:
+            if kind != "learnings":
+                raise
+            data, problems = [], [(1, str(exc))]
         documents[kind] = data
         if data is None:
             print("Missing " + kind + ".md")
         for n, message in problems:
             print("{}:{}: {}".format(root / (kind + ".md"), n, message), file=sys.stderr)
-        if problems:
+        # A lessons file never blocks starting work: its parsed rows still print below.
+        if problems and kind != "learnings":
             return 1
     row = next((r for r in documents["backlog"] or [] if r["id"] == ident), None)
     if row:
@@ -500,10 +641,34 @@ def context(root, ident):
               "; moving to: " + (node["moving"] or "none") + "; depends on: " + (", ".join(node["links"]) or "none"))
     if not nodes:
         print("Missing Wardley component link for " + ident)
+    lessons = documents["learnings"] or []
+    for lesson in lessons:
+        if lesson["live"]:
+            print(lesson_line(lesson))
+    expired = sum(1 for lesson in lessons if not lesson["live"])
+    if expired:
+        print(plural(expired, "expired lesson") + ", not read back")
     return 0 if row else 1
 
 
-def guard(root, base):
+def guard_lessons(root, repo, base, today):
+    """Lines for learnings.md changes since base; parse problems go to stderr and rows that parse still count."""
+    relative = (root / "learnings.md").resolve().relative_to(repo.resolve()).as_posix()
+    exists = git(repo, "ls-tree", "--full-tree", "--name-only", base, "--", relative).strip()
+    path = root / "learnings.md"
+    if not exists and not path.exists():
+        return []
+    before, problems = parse(git(root, "show", base + ":" + relative), "learnings", today) if exists else ([], [])
+    after, issues = parse(path.read_text(encoding="utf-8"), "learnings", today) if path.exists() else ([], [])
+    for n, message in (problems if exists else []) + issues:
+        print("{}:{}: {}".format(path, n, message), file=sys.stderr)
+    found = ["lesson " + action + ": " + lesson[:60] for action, lesson in lesson_changes(before, after)]
+    if issues:
+        found.append("lesson rows unreadable: " + plural(len(issues), "format error") + "; run check")
+    return found
+
+
+def guard(root, base, today=None):
     if not shutil.which("git"):
         print("inwoven: guard needs git on PATH", file=sys.stderr)
         return 2
@@ -524,7 +689,7 @@ def guard(root, base):
     old, new = {r["id"]: r for r in before}, {r["id"]: r for r in after}
     findings = []
     updated = metadata(after_text.splitlines()).get("updated", "")
-    today = datetime.date.today().isoformat()
+    today = as_today(today).isoformat()
     if (before_text != after_text and updated and updated != today
             and updated == metadata(before_text.splitlines()).get("updated")):
         findings.append("updated: unchanged; set updated to " + today + " after this edit")
@@ -562,6 +727,7 @@ def guard(root, base):
     if deleted and added_ids and not exact:
         findings.append("ids changed (possible replacements): " + ", ".join(sorted(deleted)) +
                         " -> " + ", ".join(sorted(added_ids)))
+    findings.extend(guard_lessons(root, repo, base, today))
     for finding in sorted(findings):
         print(finding)
     if findings:
@@ -594,7 +760,7 @@ def init(root, kinds):
 
 def recognizes(text, kind):
     lines = re.split(r"\r\n|\r|\n", text) if kind in ("impact", "wardley") else text.splitlines()
-    if kind in ("backlog", "goals"):
+    if kind in ("backlog", "goals", "learnings"):
         headers = (HEADERS[kind], LEGACY) if kind == "goals" else (HEADERS[kind],)
         return any(line.rstrip() in headers for line in lines)
     if kind == "wardley":
@@ -772,6 +938,13 @@ def reminder(before_text, after_text):
     return questions
 
 
+def lesson_reminder(before_text, after_text):
+    before, _ = parse(before_text, "learnings") if before_text else ([], [])
+    after, _ = parse(after_text, "learnings")
+    return ["Did the person say yes in this conversation to this lesson (" + action + ": \"" + lesson[:60] +
+            "\")? If not, undo it now." for action, lesson in lesson_changes(before, after)]
+
+
 def hook():
     # Infra and foreign-file events stay silent. Recognized errors use exit 2
     # for the Claude and Codex PostToolUse stderr feedback contract.
@@ -847,6 +1020,11 @@ def hook():
                 # A human edit between PreToolUse and PostToolUse is indistinguishable
                 # from this call's edit. Earlier uncommitted edits are preserved.
                 changes.extend(reminder(snapshot, text))
+            elif kind == "learnings" and snapshot is not None and not moved:
+                changes.extend(lesson_reminder(snapshot, text))
+            elif kind == "learnings" and not moved:
+                # No snapshot (new or untracked file): compare with HEAD, or with nothing.
+                changes.extend(lesson_reminder(previous, text))
         except (OSError, UnicodeError, ValueError, AttributeError, TypeError, subprocess.CalledProcessError):
             continue
     try:
@@ -879,6 +1057,12 @@ def hook():
     return 0
 
 
+def today_arg(value):
+    if not iso(value):
+        raise argparse.ArgumentTypeError("use a real date as YYYY-MM-DD")
+    return value
+
+
 def main():
     parser = argparse.ArgumentParser(description="Check and read Inwoven product files; create missing templates safely.")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -891,14 +1075,17 @@ def main():
         if name == "check":
             p.add_argument("files", nargs="*", help="explicit files; otherwise the product folder")
             p.add_argument("--kind", choices=FILES, help="format of explicitly named files")
+            p.add_argument("--today", type=today_arg, help="today as YYYY-MM-DD; default: the local date")
         elif name == "new-id":
             p.add_argument("--count", type=int, default=1, help="number of unused ids; default: 1")
         elif name == "context":
             p.add_argument("id", help="item id, for example K417")
+            p.add_argument("--today", type=today_arg, help="today as YYYY-MM-DD; default: the local date")
         elif name == "guard":
             p.add_argument("--base", required=True, help="git revision to compare; fetch it first")
+            p.add_argument("--today", type=today_arg, help="today as YYYY-MM-DD; default: the local date")
         elif name == "init":
-            p.add_argument("kinds", nargs="*", help="requested kinds: backlog, goals, impact, wardley; default: backlog")
+            p.add_argument("kinds", nargs="*", help="requested kinds: backlog, goals, impact, wardley, learnings; default: backlog")
     commands.add_parser("hook", help="Claude and Codex PostToolUse adapter: read event JSON on stdin")
     args = parser.parse_args()
     try:
@@ -907,15 +1094,15 @@ def main():
         if args.command == "check":
             if args.kind and not args.files:
                 parser.error("--kind requires explicit files")
-            return check(args.root, args.files, args.kind)
+            return check(args.root, args.files, args.kind, args.today)
         if args.command == "new-id":
             return new_ids(args.root, args.count)
         if args.command == "context":
-            return context(args.root, args.id)
+            return context(args.root, args.id, args.today)
         if args.command == "guard":
-            return guard(args.root, args.base)
+            return guard(args.root, args.base, args.today)
         if any(k not in FILES for k in args.kinds):
-            parser.error("init kinds must be backlog, goals, impact or wardley")
+            parser.error("init kinds must be backlog, goals, impact, wardley or learnings")
         return init(args.root, args.kinds or ["backlog"])
     except (OSError, UnicodeError, ValueError, subprocess.CalledProcessError) as exc:
         if args.command == "hook":

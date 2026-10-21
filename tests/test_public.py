@@ -13,7 +13,7 @@ import unittest
 TREE = Path(__file__).resolve().parents[1]
 SCRIPT = TREE / 'skills/inwoven/scripts/inwoven.py'
 FIXTURES = TREE / 'tests/fixtures'
-KINDS = ('backlog', 'goals', 'impact', 'wardley')
+KINDS = ('backlog', 'goals', 'impact', 'wardley', 'learnings')
 
 
 def run(*args, **kwargs):
@@ -43,7 +43,8 @@ class PublicTests(unittest.TestCase):
                     if variant == 'broken':
                         self.assertRegex(result.stderr, re.escape(str(path)) + r':\d+: ')
         mutations = {'backlog': ('K418', 'K417'), 'goals': ('Next', 'Now'),
-                     'impact': ('    - K417', '      - K417'), 'wardley': ('| Genesis |', '| Unknown |')}
+                     'impact': ('    - K417', '      - K417'), 'wardley': ('| Genesis |', '| Unknown |'),
+                     'learnings': ('| K418 |', '| k418 |')}
         for kind, (old, new) in mutations.items():
             path = self.root / (kind + '.md')
             before = path.read_text(encoding='utf-8')
@@ -64,7 +65,7 @@ class PublicTests(unittest.TestCase):
         self.assertTrue(1 <= len(fields['description'].strip().strip('"')) <= 200)
         self.assertNotIn(': ', fields['description'])
         self.assertTrue(fields['description'].strip().startswith('"'))
-        self.assertLessEqual(len(text.splitlines()), 104)
+        self.assertLessEqual(len(text.splitlines()), 120)
         self.assertLessEqual(set(fields), {'name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools'})
 
     def test_new_id_and_errors(self):

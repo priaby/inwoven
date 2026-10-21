@@ -11,3 +11,11 @@ S10	Use $inwoven to check the product files.
 S11	Close the top backlog item.
 S12	Check docs/product/backlog.md and report the result.
 S13	Explain the Backlog.md CLI backlog/tasks format; do not edit Inwoven files.
+L1	Start the top item.
+L1B	Start the top item.
+L2	Start the top item.
+L3	Start the top item.
+P1	Mark the top item done. It took two tries: ISO dates broke the partner importer, it needs DD.MM.YYYY.
+P2	Mark the top item done. It took two tries: ISO dates broke the partner importer, it needs DD.MM.YYYY.
+P3	Mark the top item done. It only renamed a button label.
+W1	Mark the top item done. It took two tries: ISO dates broke the partner importer, it needs DD.MM.YYYY.		yes
