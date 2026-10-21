@@ -1,6 +1,6 @@
 ---
 name: inwoven
-description: "Read and edit Inwoven backlogs and goals/maps. Use for add, move X above Y, reorder, start, block, mark done, accept, reopen, which goal, save a lesson, validate files; not other backlog tools."
+description: "Inwoven backlog, goals, maps. Use to start or resume (Start T318, continue the top item), add, move X above Y, reorder, block, accept, reopen, which goal, propose or save a lesson, validate files"
 license: MIT
 ---
 

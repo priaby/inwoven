@@ -21,3 +21,10 @@ T20	no	Rename the function in src/app.py to main.
 T21	yes	The importer fix took two tries. Propose a lesson so the next agent does not repeat it.
 T22	yes	Renew the lesson about DD.MM.YYYY export dates, I approve it again.
 T23	no	Add a comment in src/app.py saying dates are shown as DD.MM.YYYY.
+T24	yes	Start K417.
+T25	yes	Work on item K417 now.
+T26	yes	Continue the top item.
+T27	no	Start the dev server and tell me which port it uses.
+T28	no	Continue the refactor of src/app.py from where we left off.
+T29	yes	What did we learn from the importer fix?
+T30	yes	Save a lesson: ISO dates break the partner importer.

@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import signal
 import subprocess
+import re
 import tempfile
 import time
 import uuid
@@ -54,6 +55,24 @@ def turn_results(events):
     return found
 
 
+def published_block(readme):
+    """The AGENTS.md block of the README "AGENTS.md alternative" section, as published."""
+    text = Path(readme).read_text(encoding="utf-8")
+    section = text.split("## AGENTS.md alternative", 1)[1]
+    return section.split("```markdown\n", 1)[1].split("\n```", 1)[0] + "\n"
+
+
+def install_block(repo, block, product, skill_dir):
+    """Arms D and E: the fixture's AGENTS.md is the published block with the placeholders a user fills in."""
+    block = block.replace("docs/product/", product + "/").replace("<skill dir>", skill_dir)
+    block = re.sub(r"\bDIR\b", product, block)
+    agents = Path(repo) / "AGENTS.md"
+    text = agents.read_text()
+    hint = "- Backlog: " + product + "/backlog.md.\n"
+    assert hint in text, "fixture AGENTS.md has no backlog hint to replace"
+    agents.write_text(text.replace(hint, "") .rstrip("\n") + "\n\n" + block)
+
+
 def isolated_root(path):
     path = path.resolve()
     for parent in [path, *path.parents]:
@@ -67,7 +86,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("-k", "--skill", type=Path, default=ROOT / "skills/inwoven")
     p.add_argument("--triggers", action="store_true", help="scenario TSV is id, yes/no, prompt; score Skill tool activation")
-    p.add_argument("--arms", default="with", help="space-separated with without configs; without installs no skill")
+    p.add_argument("--arms", default="with", help="space-separated: with (plugin), without (no skill), D (published AGENTS.md block, skill folder in the repo and the plugin), E (the block only)")
+    p.add_argument("--block", type=Path, default=ROOT / "README.md", help="README or file holding the AGENTS.md alternative block for arms D and E")
     p.add_argument("-c", "--configs", default="haiku sonnet codex", help="space-separated configs")
     p.add_argument("-s", "--select", default="", help="space-separated scenario ids")
     p.add_argument("-S", "--scenarios", type=Path, default=HERE / "scenarios.tsv", help="scenario TSV override")
@@ -116,8 +136,11 @@ def main():
     except (OSError, ValueError) as exc:
         p.error(str(exc))
     arms = args.arms.split()
-    if not arms or any(a not in ("with", "without") for a in arms):
-        p.error("arms must be with or without")
+    if not arms or any(a not in ("with", "without", "D", "E") for a in arms):
+        p.error("arms must be with, without, D or E")
+    block_text = None
+    if any(a in ("D", "E") for a in arms):
+        block_text = published_block(args.block) if args.block.name.lower().startswith("readme") else args.block.read_text()
     namespace = uuid.uuid4().hex[:12]
     def job(repeat, config, ident, prompt, arm, followup=""):
         result_dir = out / ("run" + str(repeat)) / (config if arms == ["with"] else config + "-" + arm) / ident
@@ -134,12 +157,19 @@ def main():
         if not args.triggers:
             from learnings_eval import apply as apply_learnings_case
             apply_learnings_case(ident, repo)
+        if arm in ("D", "E"):
+            from learnings_eval import product_dir
+            install_block(repo, block_text, product_dir(ident), ".agents/skills/inwoven")
         git("init", "-b", "main")
         git("add", "-A")
         git("commit", "-m", "fixture")
-        if arm == "with":
+        if arm == "D":
+            shutil.copytree(skill, repo / ".agents/skills/inwoven", ignore=shutil.ignore_patterns("__pycache__"))
+            git("add", "-A")
+            git("commit", "-m", "add inwoven skill folder")
+        if arm in ("with", "D"):
             # Codex folder discovery; Claude receives a plugin, not a browsable skill folder.
-            if config == "codex":
+            if config == "codex" and arm == "with":
                 shutil.copytree(skill, repo / ".agents/skills/inwoven")
                 git("add", "-A")
                 git("commit", "-m", "add inwoven skill")
@@ -176,7 +206,7 @@ def main():
             head = ["claude", "-p", "--model", config, "--permission-mode", "bypassPermissions",
                     "--output-format", "stream-json", "--verbose", "--setting-sources", "project",
                     "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}"]
-            if arm == "with":
+            if arm in ("with", "D"):
                 head += ["--plugin-dir", str(plugin)]
             argv = head + ["--", prompt]
         rc, infra = None, ""

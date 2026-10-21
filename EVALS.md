@@ -311,6 +311,94 @@ own sake, is gone, since no `tests/` folder exists, but not the exploration.
 Records and diffs are under `artifacts/checks/w669/evals/coverage/` (`A`, `C`, `A-L3N-workflow`,
 `C-L3N-workflow`, `discovery`, `discovery-rep`) in the private repository.
 
+## Discovery pass (W669), skill 0.6.2
+
+Run on 2026-10-21. The 0.6.1 coverage pass found that "Start T318." loaded the skill in 3 of 9 Haiku runs and
+0 of 9 Sonnet runs, and that "Propose a lesson" never loaded it. The description was tuned and measured, with
+one revision after the first measurement and no more. Haiku 5.5 and Sonnet 5.5, three runs per cell, all completed
+turns (runs that died on the account's session limit were discarded and rerun, 95 of them, none counted). A small
+sample, not a reliability estimate.
+
+Description texts (200 characters at most):
+
+- 0.6.1: "Read and edit Inwoven backlogs and goals/maps. Use for add, move X above Y, reorder, start, block, mark done,
+  accept, reopen, which goal, save a lesson, validate files; not other backlog tools." (186)
+- First tuning, 200: "Inwoven backlog, goals, maps. Use to start or resume an item (Start T318, continue the top item), add, reorder,
+  block, accept, reopen, which goal, propose or save a lesson, what did we learn, validate". It fixed the start and lesson
+  queries and broke T05 (2/3 to 0/3) and T07 (2/3 to 1/3), because "move X above Y" and "validate files" were cut.
+- Final, 195 (one revision, in SKILL.md): "Inwoven backlog, goals, maps. Use to start or resume (Start T318, continue the top
+  item), add, move X above Y, reorder, block, accept, reopen, which goal, propose or save a lesson, validate files". It restores
+  those two phrases and drops "what did we learn", "mark done" and "not other backlog tools" for room.
+
+### Discovery
+
+Queries are the 23 of 0.6.1 plus seven added now: T24 "Start K417.", T25 "Work on item K417 now.", T26 "Continue the top
+item.", T29 "What did we learn from the importer fix?", T30 "Save a lesson: ISO dates break the partner importer." (all should
+trigger) and the near-misses T27 "Start the dev server and tell me which port it uses." and T28 "Continue the refactor of
+src/app.py from where we left off." Used the Skill tool, runs out of 3, before / first tuning / final:
+
+| Query | Haiku before | Haiku first | Haiku final | Sonnet before | Sonnet first | Sonnet final |
+|---|---:|---:|---:|---:|---:|---:|
+| T04 which goal does K417 serve | 1 | 3 | 3 | | | |
+| T05 move Offline editing above Share a note | 2 | 0 | 3 | | | |
+| T07 check our product files are valid | 2 | 1 | 2 | | | |
+| T10 start the highest priority story | 3 | 3 | 3 | 3 | 3 | 3 |
+| T21 propose a lesson after the fix | 0 | 3 | 2 | 1 | 3 | 3 |
+| T24 Start K417. | 3 | 3 | 3 | 3 | 3 | 3 |
+| T25 Work on item K417 now. | 2 | 3 | 3 | 1 | 3 | 3 |
+| T26 Continue the top item. | 1 | 3 | 3 | 1 | 3 | 3 |
+| T29 What did we learn from the importer fix? | 0 | | 0 | 0 | | 0 |
+| T30 Save a lesson: ISO dates break ... | 3 | | 3 | 3 | | 3 |
+| T01-T03, T06, T08, T09, T22 | 3 each | 3 each | 3 each | | | |
+| Near-misses T11-T20, T23, T27, T28 | 0 each | 0 each | 0 each | T27, T28: 0 | 0 | 0 |
+
+The 12 original should-trigger queries on Haiku, 3 runs each: 29/36 before, 31/36 first tuning, 34/36 final. The 11
+original near-misses: 0/33 in all three. Not fixed: T29 loads the skill in 0 of 6 runs; it names no file and asks a question
+about a past fix, and the description has no room for "what did we learn". T21 on Haiku is 2/3. T07 stays 2/3. The
+discovery sets for the first tuning were run on a description that no longer ships; its numbers are kept because they
+show what "move X above Y" is worth.
+
+### Setup users get: arms D and E
+
+Same L1N and L3N fixtures as the read-back section (product files in `team/`, prompt "Start T318."). In arms D and E the
+fixture AGENTS.md keeps its three project lines and holds, instead of "Backlog: team/backlog.md.", the README block
+"AGENTS.md alternative" exactly as published in 0.6.1, with `docs/product/` and `DIR` set to `team/`, `team` and `<skill dir>`
+set to `.agents/skills/inwoven`. Arm D also has the skill folder at that path (the README tells a user to copy it) and the
+plugin installed, at the final description. Arm E has the same block and neither the folder nor the plugin, so its
+commands point at nothing. Arm A is the plugin alone with the L1N fixture's one-line hint, as in the read-back section,
+on the final description. Provenance is graded as before. "Touched the check" counts runs that opened or ran the L3N workflow.
+
+| Case | Arm | Model | Pass | Skill loaded | `context` run | Opened directly | Read-back only | Touched the check |
+|---|---|---|---:|---:|---:|---:|---:|---:|
+| L1N | A: plugin | Haiku 5.5 | 3/3 | 3 | 2 | 3 | 0 | |
+| L1N | A: plugin | Sonnet 5.5 | 3/3 | 3 | 3 | 1 | 2 | |
+| L1N | D: block, folder, plugin | Haiku 5.5 | 3/3 | 3 | 3 | 3 | 0 | |
+| L1N | D | Sonnet 5.5 | 3/3 | 3 | 2 | 3 | 0 | |
+| L1N | E: block only | Haiku 5.5 | 3/3 | 0 | 0 | 3 | 0 | |
+| L1N | E | Sonnet 5.5 | 3/3 | 0 | 0 | 3 | 0 | |
+| L3N | D | Haiku 5.5 | 3/3 | 3 | 2 | 3 | 0 | 3 |
+| L3N | D | Sonnet 5.5 | 3/3 | 3 | 3 | 0 | 3 | 3 |
+| L3N | E | Haiku 5.5 | 3/3 | 0 | 0 | 3 | 0 | 3 |
+| L3N | E | Sonnet 5.5 | 3/3 | 0 | 0 | 3 | 0 | 3 |
+
+Read this as follows.
+
+- On the final description the skill loads on "Start T318." in every A and D run (18 of 18), against 3 of 9 Haiku and
+  0 of 9 Sonnet runs on 0.6.1. Arm A on L1N went from 2/3 and 0/3 to 3/3 and 3/3.
+- Arm E passes 12 of 12 with no skill at all. Every E run opened `learnings.md` itself: the block says where the product
+  files are and "Read live lessons before work", and that line was enough. So the always-loaded AGENTS.md line delivers the
+  lesson here; the block did not need a more direct read line and was not changed.
+- Arm D passes 12 of 12. Five runs, all Sonnet, were read-back only (the lesson first appeared in a `context` result and
+  the file was never opened): A on L1N 2 and D on L3N 3. Haiku opened the file directly in every A and D run, `context`
+  or not.
+- L3N is passed by all 12 runs of D and E, and every one of them opened or ran the workflow. As before, the check is
+  reachable by exploring the repo, so L3N does not show the lesson alone carried the pass. L2N was not rerun.
+- With the first tuning text, D also scored 12 of 12 and A on L1N 3/3 and 3/3. The final text was re-measured on D and A;
+  E does not depend on it.
+
+Records are under `artifacts/checks/w669/evals/discovery2/` in the private repository (`before-*`, `after1-*`, `after2-*`
+for discovery; `DE`, `A1` for the first text; `D2`, `A2` for the final text).
+
 ## Rerun from this public repository
 
 Signed-in Claude Code and Codex CLIs are required. Runs incur model-account usage.
@@ -324,6 +412,7 @@ python3 tests/eval/run_eval.py -c codex -s S12 -w /tmp/inwoven-work -o artifacts
 python3 tests/eval/run_eval.py -c "haiku sonnet" -s "L1 L2 L3" --repeat 3 --jobs 4 -w /tmp/inwoven-work -o artifacts/lessons
 python3 tests/eval/run_eval.py -c "haiku sonnet" -s "P1 P2 P3 W1" --repeat 3 --jobs 4 -w /tmp/inwoven-work -o artifacts/propose
 python3 tests/eval/run_eval.py -c "haiku sonnet" -s "L1N L2N L3N" --repeat 3 --jobs 4 -w /tmp/inwoven-work -o artifacts/readback
+python3 tests/eval/run_eval.py --arms "D E" -c "haiku sonnet" -s "L1N L3N" --repeat 3 --jobs 3 -w /tmp/inwoven-work -o artifacts/block
 claude plugin eval . --scaffold --allow-tools Bash Edit Write --model haiku --runs 1 --trust-plugin --no-publish
 ```
 
