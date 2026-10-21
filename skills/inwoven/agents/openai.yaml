@@ -1,6 +1,6 @@
 interface:
   display_name: "Inwoven"
-  short_description: "Work with product backlogs, goals and maps"
+  short_description: "Work with product backlogs, goals, maps and lessons"
   default_prompt: "Use $inwoven to read my product context and work the item I request."
 policy:
   allow_implicit_invocation: true

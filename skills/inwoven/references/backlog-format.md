@@ -107,6 +107,6 @@ ids, in order and in the same place, wherever it is named: in `impact.md` (the l
 becomes the new ids); a leaf or cell that is not just the id needs the person's call. If
 the same impact names the original twice, write the new ids once and drop the second leaf.
 Set `updated:` to today in each of `impact.md` and `wardley.md` you change.
-`goals.md` names no item ids. Subject `backlog: split <ID> into <ID>, <ID>` (the
+`goals.md` names no item ids. `learnings.md` keeps the original id in its Item cell: it records which item taught the lesson. Subject `backlog: split <ID> into <ID>, <ID>` (the
 original, then the new ids in row order). Row history marks the original touched
 in the commit that names it; that is expected.

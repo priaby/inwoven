@@ -18,3 +18,6 @@ T17	no	Draft release notes for version 1.2.
 T18	no	Set up a GitHub Actions workflow that runs pytest.
 T19	no	What is the difference between a product backlog and a sprint backlog, in general?
 T20	no	Rename the function in src/app.py to main.
+T21	yes	The importer fix took two tries. Propose a lesson so the next agent does not repeat it.
+T22	yes	Renew the lesson about DD.MM.YYYY export dates, I approve it again.
+T23	no	Add a comment in src/app.py saying dates are shown as DD.MM.YYYY.

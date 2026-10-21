@@ -1,6 +1,6 @@
 ---
 name: inwoven
-description: "Read and edit Inwoven backlogs and goals/maps. Use for add, move X above Y, reorder priority, start, block, mark done, accept, reopen, which goal, or validate product files; not other backlog tools."
+description: "Read and edit Inwoven backlogs and goals/maps. Use for add, move X above Y, reorder, start, block, mark done, accept, reopen, which goal, save a lesson, validate files; not other backlog tools."
 license: MIT
 ---
 
@@ -42,7 +42,7 @@ Use the selected folder's path relative to the repo root as DIR below.
    If complete and awaiting acceptance, report evidence and stop. Completion never implies Done.
 4. Run `python3 <skill dir>/scripts/inwoven.py context ID --root DIR` before starting.
    Read linked goal and measure, actor and change, and Wardley components; read
-   maps for goals not yet achieved first. Goals, impact and Wardley are optional.
+   maps for goals not yet achieved first. Goals, impact, Wardley and learnings are optional.
    For missing goal links lead with "No recorded goal link"; suggestions are proposals.
    Say missing context once and continue. Context also prints each live lesson: say which
    apply to this item or that none do; never apply an expired one.

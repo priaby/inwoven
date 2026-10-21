@@ -10,6 +10,10 @@ import subprocess
 import sys
 
 
+RESULT_CAP = 6000
+NEW_SCRIPT = Path(__file__).resolve().parents[2] / "skills/inwoven/scripts/inwoven.py"
+
+
 def tool_calls(commands):
     """Extract direct and assigned-variable calls from full command evidence."""
     variables, calls = {}, []
@@ -33,6 +37,11 @@ def summarize(kind, events, repo, base, checker_root, skill_dir=None):
     repo = Path(repo)
     commands, final, completed, skill_tool = [], "", False, False
     read_paths, evidence, instruction_reads, edits = set(), [], [], []
+    results, by_id = {}, {}
+    def result_text(content):
+        if isinstance(content, list):
+            content = "\n".join(block.get("text", "") if isinstance(block, dict) else str(block) for block in content)
+        return str(content or "")[:RESULT_CAP]
     def record(name, inp):
         nonlocal skill_tool
         if name == "Skill" and "inwoven" in json.dumps(inp):
@@ -57,6 +66,7 @@ def summarize(kind, events, repo, base, checker_root, skill_dir=None):
                     instruction_reads.append(dict(index=index, path=path, whole=not (truncated or limited), command=command))
             if "SKILL.md" in command and ("inwoven" in command):
                 evidence.append("read: " + command)
+        return index
     for line in Path(events).read_text(encoding="utf-8", errors="replace").splitlines():
         try:
             d = json.loads(line)
@@ -66,7 +76,12 @@ def summarize(kind, events, repo, base, checker_root, skill_dir=None):
             if d.get("type") == "assistant":
                 for block in d.get("message", {}).get("content", []):
                     if block.get("type") == "tool_use":
-                        record(block.get("name", ""), block.get("input") or {})
+                        by_id[block.get("id")] = record(block.get("name", ""), block.get("input") or {})
+            elif d.get("type") == "user":
+                content = d.get("message", {}).get("content", [])
+                for block in content if isinstance(content, list) else []:
+                    if isinstance(block, dict) and block.get("type") == "tool_result" and block.get("tool_use_id") in by_id:
+                        results[by_id[block["tool_use_id"]]] = result_text(block.get("content"))
             elif d.get("type") == "result":
                 completed = not d.get("is_error", False)
                 final = d.get("result") or ""
@@ -76,7 +91,7 @@ def summarize(kind, events, repo, base, checker_root, skill_dir=None):
             item = d.get("item") or {}
             if d.get("type") == "item.completed":
                 if item.get("type") == "command_execution":
-                    record("bash", {"command": item.get("command", "")})
+                    results[record("bash", {"command": item.get("command", "")})] = result_text(item.get("aggregated_output"))
                 elif item.get("type") == "agent_message":
                     final = item.get("text", "")
     def git(*args):
@@ -90,18 +105,22 @@ def summarize(kind, events, repo, base, checker_root, skill_dir=None):
                 found[ident] = [c.strip() for c in line.strip().strip("|").split("|")]
                 order.append(ident)
         return found, order
-    bf = repo / "docs/product/backlog.md"
-    before, ob = rows(git("show", base + ":docs/product/backlog.md"))
+    product = "team" if (repo / "team/backlog.md").exists() else "docs/product"
+    bf = repo / product / "backlog.md"
+    before, ob = rows(git("show", base + ":" + product + "/backlog.md"))
     after, oa = rows(bf.read_text() if bf.exists() else "")
     def check(argv):
         p = subprocess.run(argv, cwd=repo, capture_output=True, text=True)
         return {"rc": p.returncode, "out": p.stdout + p.stderr}
     script = Path(skill_dir or repo / ".agents/skills/inwoven") / "scripts/inwoven.py"
     checks = {name: check([sys.executable, str(script), "check", "--kind", name,
-                           "docs/product/" + name + ".md"])
+                           product + "/" + name + ".md"])
               for name in ("backlog", "goals", "impact", "wardley")}
-    bundled = check([sys.executable, str(script), "check", "--root", "docs/product"])
-    guard = check([sys.executable, str(script), "guard", "--base", base, "--root", "docs/product"])
+    if (repo / product / "learnings.md").exists():
+        # Always the current script: the file is valid or not whatever skill version the agent had.
+        checks["learnings"] = check([sys.executable, str(NEW_SCRIPT), "check", "--kind", "learnings", product + "/learnings.md"])
+    bundled = check([sys.executable, str(script), "check", "--root", product])
+    guard = check([sys.executable, str(script), "guard", "--base", base, "--root", product])
     commits = git("log", "--format=%H %s", base + "..HEAD").splitlines()
     calls = tool_calls(commands)
     tools = {name: any(call["tool"] == command for call in calls)
@@ -130,7 +149,8 @@ def summarize(kind, events, repo, base, checker_root, skill_dir=None):
                              new_order=oa, row_changes={i: {"before": before[i], "after": after[i]}
                                                       for i in oa if i in before and before[i] != after[i]},
                              added_rows={i: after[i] for i in oa if i not in before}),
-                final=final, tool_cmds=commands)
+                final=final, tool_cmds=commands,
+                tool_results=[dict(index=i, result=results[i]) for i in sorted(results)])
 
 
 if __name__ == "__main__":

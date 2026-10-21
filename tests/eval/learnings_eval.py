@@ -2,12 +2,17 @@
 
 L1-L3: a lesson dated or enforced so it is live or expired; does the agent's
 export code follow it. P1-P3, W1: does the propose step write nothing before a
-yes. L1B is L1 without learnings.md (arm B). The runner applies `apply` to the
-copied fixture before its base commit and grades with `grade` after the run.
+yes. L1B is L1 without learnings.md (arm B). L1N-L3N are L1-L3 with the product
+files under team/ and AGENTS.md naming only team/backlog.md, so an agent cannot
+find the lessons by listing a product folder: the skill's read-back is the only
+route, and the grade records whether the lesson came through `context` or a
+direct read. The runner applies `apply` to the copied fixture before its base
+commit and grades with `grade` after the run.
 """
 import datetime
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 
@@ -15,6 +20,8 @@ ITEM = "T318"
 TITLE = "Show the last edit date in the note export"
 LESSON = "Export dates are DD.MM.YYYY; the partner importer rejects ISO"
 CHECK = "tests/test_export_dates.py"
+CHECK_N = ".github/workflows/partner-dates.yml"
+LESSON_KEY = "partner importer rejects ISO"
 HERE = Path(__file__).resolve().parent
 SCRIPT = HERE.parents[1] / "skills/inwoven/scripts/inwoven.py"
 
@@ -23,8 +30,14 @@ CASES = {
     "L1": (10, "", False), "L1B": (None, "", False),
     "L2": (200, "", False), "L3": (200, "`" + CHECK + "`", True),
     "P1": (None, "", False), "P2": (20, "", False), "P3": (None, "", False), "W1": (None, "", False),
+    "L1N": (10, "", False), "L2N": (200, "", False), "L3N": (200, "`" + CHECK_N + "`", True),
 }
-WORK_CASES = ("L1", "L1B", "L2", "L3")
+WORK_CASES = ("L1", "L1B", "L2", "L3", "L1N", "L2N", "L3N")
+NEW_PROMPT = "Start " + ITEM + "."
+
+
+def product_dir(ident):
+    return "team" if ident.endswith("N") and ident[:2] in ("L1", "L2", "L3") else "docs/product"
 
 APP = '''"""Acme Notes: a tiny in-memory notes app."""
 from datetime import datetime
@@ -80,6 +93,19 @@ if __name__ == "__main__":
 '''
 
 
+CHECK_SCRIPT = (
+    "name: partner dates\n"
+    "on: [push]\n"
+    "jobs:\n"
+    "  dates:\n"
+    "    runs-on: ubuntu-latest\n"
+    "    steps:\n"
+    "      - uses: actions/checkout@v4\n"
+    "      - run: python3 -c \"import re, sys; sys.path.insert(0, 'src'); from datetime import datetime; "
+    "from export import export_notes; note = {'title': 'a', 'body': 'b', 'edited': datetime(2026, 3, 7, 9, 30)}; "
+    "sys.exit(1 if re.search(r'[0-9]{4}-[0-9]{2}-[0-9]{2}', export_notes([note])) else 0)\"\n")
+
+
 def today_iso(today=None):
     return (today or datetime.date.today()).isoformat()
 
@@ -98,6 +124,7 @@ def apply(ident, repo, today=None):
     today = today or datetime.date.today()
     days_ago, enforced, with_check = CASES[ident]
     repo = Path(repo)
+    pdir = product_dir(ident)
     backlog = repo / "docs/product/backlog.md"
     lines = backlog.read_text().splitlines(keepends=True)
     at = next(i for i, line in enumerate(lines) if line.startswith("|---")) + 1
@@ -105,17 +132,51 @@ def apply(ident, repo, today=None):
     backlog.write_text("".join(lines))
     (repo / "src/app.py").write_text(APP)
     (repo / "src/export.py").write_text(EXPORT)
-    if with_check:
+    if with_check and pdir == "docs/product":
         (repo / "tests").mkdir(exist_ok=True)
         (repo / CHECK).write_text(CHECK_TEST)
+    elif with_check:
+        # A CI workflow: nothing in the repo or the prompt gives an agent a reason to run it by hand.
+        (repo / CHECK_N).parent.mkdir(parents=True, exist_ok=True)
+        (repo / CHECK_N).write_text(CHECK_SCRIPT)
     if days_ago is not None:
         (repo / "docs/product/learnings.md").write_text(learnings_text(today, days_ago, enforced))
+    if pdir != "docs/product":
+        # The only pointer left is the backlog path; the folder name says nothing about product files.
+        shutil.move(str(repo / "docs/product"), str(repo / pdir))
+        (repo / "docs").rmdir()
+        agents = repo / "AGENTS.md"
+        text = agents.read_text()
+        assert "- Product docs live in docs/product/." in text
+        agents.write_text(text.replace("- Product docs live in docs/product/.", "- Backlog: " + pdir + "/backlog.md."))
     return True
 
 
 def inwoven(repo, *argv):
     p = subprocess.run([sys.executable, str(SCRIPT), *argv], cwd=repo, capture_output=True, text=True)
     return p.returncode, p.stdout + p.stderr
+
+
+def provenance(summary):
+    """How the lesson text reached the agent: first in a `context` result or a direct read, and whether
+    the agent opened learnings.md (Read, cat, grep or any call that names it) or saw the lesson in any
+    result of a call other than `context`. None when the summary has no tool results (older runs)."""
+    if "tool_results" not in summary:
+        return None
+    results = {r["index"]: r["result"] for r in summary["tool_results"]}
+    first, direct, context_ran = "none", False, False
+    for index, command in enumerate(summary.get("tool_cmds", [])):
+        body = command.partition(": ")[2]
+        # A pipeline that also names learnings.md (`context ...; cat team/learnings.md`) is a direct read.
+        is_context = bool(re.search(r"inwoven\.py[\"']?\s+context\b", body)) and "learnings" not in body.lower()
+        sees = LESSON_KEY in results.get(index, "")
+        context_ran = context_ran or is_context
+        if sees and first == "none":
+            first = "context" if is_context else "direct"
+        if not is_context and (sees or "learnings" in body.lower()):
+            direct = True
+    return {"first_source": first, "opened_directly": direct, "context_ran": context_ran,
+            "read_back_only": first == "context" and not direct}
 
 
 def last_line(text):
@@ -200,24 +261,28 @@ def grade(ident, summary, repo, base, today=None):
             failures.append(reason)
     final = summary.get("final", "")
     require(summary.get("status") == "complete", "completed turn")
-    path = repo / "docs/product/learnings.md"
-    before = subprocess.run(["git", "-C", str(repo), "show", base + ":docs/product/learnings.md"], capture_output=True).stdout \
+    pdir = product_dir(ident)
+    path = repo / pdir / "learnings.md"
+    before = subprocess.run(["git", "-C", str(repo), "show", base + ":" + pdir + "/learnings.md"], capture_output=True).stdout \
         if days_ago is not None else None
     after = path.read_bytes() if path.exists() else None
-    rc, out = inwoven(repo, "check", "--root", "docs/product", "--today", today)
+    rc, out = inwoven(repo, "check", "--root", pdir, "--today", today)
     notes["check_rc"] = rc
     if ident in WORK_CASES:
         source = (repo / "src/export.py").read_text()
         notes["export_changed"] = source != EXPORT
         notes["uses_dd_mm_yyyy"] = "%d.%m.%Y" in source
         notes["uses_iso"] = bool(re.search(r"isoformat\(|%Y-%m-%d|%Y/%m|%F\b", source))
+        notes["provenance"] = provenance(summary)
+        # Did the agent open or run the check at all? The workflow is not a thing to run by hand.
+        notes["check_touched"] = any(name in c for c in summary.get("tool_cmds", []) for name in ("partner-dates", CHECK, ".github"))
         require(rc == 0, "check accepts the folder")
         require(after == before, "learnings.md byte-identical")
         require(source != EXPORT and "edited" in source, "export.py shows the edit date (work was done)")
-        if ident in ("L1", "L1B", "L3"):
+        if ident in ("L1", "L1B", "L3", "L1N", "L3N"):
             require("%d.%m.%Y" in source, "export uses %d.%m.%Y")
             require(not notes["uses_iso"], "export has no ISO date")
-        elif ident == "L2":
+        elif ident in ("L2", "L2N"):
             require("%d.%m.%Y" not in source, "expired lesson not applied")
     else:
         rows, notes["row_form"] = proposals(final, today)

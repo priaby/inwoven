@@ -163,6 +163,8 @@ The runner needs Python 3.9 or later. Check fails on invalid files. Guard is
 advisory unless fail-on-guard is true. Fetch the base revision before comparison.
 Strict guard also fails on an edited backlog.md with an unchanged stale updated
 date. The suggested date is the runner's date; this check covers backlog.md only.
+Guard also reports an added, renewed, edited or deleted lesson in learnings.md, so
+`fail-on-guard: true` fails a pull request that changes one.
 
 ## AGENTS.md alternative
 
@@ -175,10 +177,11 @@ The block alone works in OpenCode; command reporting can vary.
 ## Product files
 Use docs/product/ unless the person or repo names another path; context files are beside backlog.md.
 Use active instructions; read missing ones whole through the product folder. Codex selects AGENTS.override.md before AGENTS.md; nearer files win.
-- backlog.md: rows in priority order; goals.md: goals and measures; impact.md: actors and changes; wardley.md: dependencies.
+- backlog.md: rows in priority order; goals.md: goals and measures; impact.md: actors and changes; wardley.md: dependencies; learnings.md: lessons the person approved.
 ## Working an item
 - Work the named item, otherwise the highest In Progress item without Waiting on:. Start To Do only when asked.
 - Read linked context first; say what optional context is missing and continue. Completion never implies Done.
+- Read live lessons before work. Propose at most one lesson per item at completion or acceptance: show the full row, ask last, write it only after yes.
 - Do not mark Done, add Accepted or Reopened, reorder, delete or add items on your own initiative. On the person's explicit request in this conversation, do exactly that and nothing more.
 - Accept In Progress on request: `Done<br>Accepted: <YYYY-MM-DD> by Product Owner`, then existing tags in order.
 - Reopen Done on request: set the requested open status, remove Accepted, add Reopened first if absent, keep other tags.
@@ -186,7 +189,7 @@ Use active instructions; read missing ones whole through the product folder. Cod
 - Before adding, run `python3 <skill dir>/scripts/inwoven.py new-id --root DIR`; never pick ids by hand. Say what was written.
 - Re-read before writing; preserve concurrent edits, unrelated bytes and ids. Keep five cells per row and titles within 80 characters.
 - In existing files with frontmatter, set updated to today as YYYY-MM-DD on every edit, reorders included. Never add frontmatter.
-- After edits run `python3 <skill dir>/scripts/inwoven.py check --root DIR`; report its exit code and output. After requested reorder, addition, deletion, acceptance or reopen, run `python3 <skill dir>/scripts/inwoven.py guard --base HEAD --root DIR`; quote its lines. Exit 1 is expected.
+- After edits run `python3 <skill dir>/scripts/inwoven.py check --root DIR`; report its exit code and output. After requested reorder, addition, deletion, acceptance or reopen, or a lesson write, run `python3 <skill dir>/scripts/inwoven.py guard --base HEAD --root DIR`; quote its lines. Exit 1 is expected.
 - Commit only when the person or repo asks; put the item id in the subject and keep the host's Co-Authored-By trailer.
 ```
 

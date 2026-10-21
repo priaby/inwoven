@@ -565,7 +565,7 @@ def new_ids(root, count):
     if count < 1:
         raise ValueError("count must be positive")
     used = set()
-    for kind in ("backlog", "impact", "wardley"):
+    for kind in ("backlog", "impact", "wardley", "learnings"):
         path = root / (kind + ".md")
         if path.exists():
             used.update(re.findall(r"\b" + ID + r"\b", path.read_text(encoding="utf-8")))
@@ -1068,7 +1068,7 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("check", "new-id", "context", "guard", "init"):
         descriptions = dict(check="Validate product files", **{"new-id": "Mint random unused item ids"},
-                            context="Read an item's goals and maps", guard="Report changes requiring a request",
+                            context="Read an item's goals, maps and lessons", guard="Report changes requiring a request",
                             init="Create requested missing product files")
         p = commands.add_parser(name, help=descriptions[name])
         p.add_argument("--root", type=Path, default=Path("docs/product"), help="product files directory; default: docs/product relative to the current folder")

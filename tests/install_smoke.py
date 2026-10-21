@@ -95,7 +95,7 @@ def exercise(script, root, plugin=None, host=None):
     assert script.is_file(), 'Missing installed script: ' + str(script)
     root.mkdir()
     command('git', 'init', str(root))
-    command(sys.executable, str(script), 'init', 'backlog', 'goals', 'impact', 'wardley', cwd=root)
+    command(sys.executable, str(script), 'init', 'backlog', 'goals', 'impact', 'wardley', 'learnings', cwd=root)
     command(sys.executable, str(script), 'check', cwd=root)
     path = root / 'docs/product/backlog.md'
     path.write_text(path.read_text(encoding='utf-8').replace('|---|---|---|---|---|\n', ''), encoding='utf-8')
