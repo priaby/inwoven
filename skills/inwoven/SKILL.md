@@ -1,6 +1,6 @@
 ---
 name: inwoven
-description: "Inwoven backlog, goals, maps. Use to start or resume (Start T318, continue the top item), add, move X above Y, reorder, block, accept, reopen, which goal, propose or save a lesson, validate files"
+description: "Inwoven backlog, goals, maps. Use to set up Inwoven, start or resume (Start T318), add, move X above Y, reorder, block, accept, reopen, which goal, propose or save a lesson, validate files"
 license: MIT
 ---
 
@@ -15,15 +15,15 @@ workflow difference. Keep the file formats in the references.
 ## Product files
 
 - backlog.md: one row per item. Row order is priority.
-- goals.md: goals and measures, with horizons Now, Next and Later.
-- impact.md: goal maps of actors, changes and item ids.
+- goals.md: goals with ids, measures, horizons Now, Next, Later.
+- impact.md: goal maps of actors, changes and item ids, by goal id.
 - wardley.md: users, components, dependencies and linked item ids.
 - learnings.md: lessons the person approved, with check, item and date.
 
 Resolve the backlog from the person's named path, then repo instructions, otherwise
-look in docs/product/ in the current folder, then the repo root. Ask if several
-folders remain plausible. Context files are beside the backlog unless named otherwise.
-Use the selected folder's path relative to the repo root as DIR below.
+look in docs/product/ in the current folder, then the repo root. Ask if several fit.
+Context files are beside the backlog unless named otherwise.
+DIR below is that folder's path from the repo root.
 
 ## Working an item
 
@@ -42,22 +42,21 @@ Use the selected folder's path relative to the repo root as DIR below.
    If complete and awaiting acceptance, report evidence and stop. Completion never implies Done.
 4. Run `python3 <skill dir>/scripts/inwoven.py context ID --root DIR` before starting.
    Read linked goal and measure, actor and change, and Wardley components; read
-   maps for goals not yet achieved first. Goals, impact, Wardley and learnings are optional.
+   maps for open goals first. Goals, impact, Wardley and learnings are optional.
    For missing goal links lead with "No recorded goal link"; suggestions are proposals.
    Say missing context once and continue. Context also prints each live lesson: say which
    apply to this item or that none do; never apply an expired one.
    Context exits 0 for missing optional links or a broken learnings.md, 1 for a missing row or invalid file.
 5. Add `Waiting on: <condition>` when blocked; remove it when resolved; keep other tags.
    Status is To Do, In Progress or Done; empty means To Do. Tags follow `<br>`.
-   Known valued prefixes are Sprint:, Due:, Accepted: and Waiting on:.
+   Known valued prefixes are Sprint:, Due:, Accepted:, From: and Waiting on:.
 6. Do not mark Done, add Accepted or Reopened, reorder, delete or add items on your
    own initiative. When the person asks for one of these in this conversation,
-   do exactly that and nothing more. Ask whether close means accept or cancel.
-   "Mark done" or "accept" for In Progress means acceptance; proceed without another question:
-    `Done<br>Accepted: <today as YYYY-MM-DD> by Product Owner`,
+   do exactly that and nothing more. If the person says close, ask whether close means accept or cancel.
+   "Mark done" or "accept" for a To Do or In Progress item means acceptance; proceed without another question:
+    `Done<br>Accepted: <today as YYYY-MM-DD> by Product Owner<br>From: <status before>`,
    then existing tags in order. Report who requested it; repo instructions may name the acceptor.
-   If To Do, explain acceptance needs In Progress first and ask whether to do both.
-   Reopen Done on request: set requested open status, remove every Accepted: tag,
+   Reopen Done on request: set requested open status, remove Accepted: and From: tags,
    add Reopened first if absent; keep other tags in order.
    Never add, edit, renew or delete a lesson without a yes in this conversation. Delete an expired row only when the person names it.
 7. Add each requested item that is new. If a title matches or nearly matches an existing
@@ -67,8 +66,8 @@ Use the selected folder's path relative to the repo root as DIR below.
    Run `python3 <skill dir>/scripts/inwoven.py new-id --root DIR` first;
    never pick an id by hand. Use the person's words for title;
    Core Job, Context and Driver come only from their words, otherwise stay empty.
-   Status stays empty unless specified. Put it where asked, otherwise last.
-   Say what was written, which cells are empty and whether it has an impact link.
+   Driver is a person, never an agent: use the name the column already holds.
+   Status stays empty unless specified. Put it where asked, otherwise last. Say what was written, which cells are empty and whether it has an impact link.
 8. Re-read before writing; preserve concurrent edits, unrelated bytes and tags,
    row order and existing ids except for the requested change. Keep the header,
    five cells per row and titles at most 80 characters. Row 1 is the top regardless
@@ -76,7 +75,7 @@ Use the selected folder's path relative to the repo root as DIR below.
    In an existing file with frontmatter, set updated to today on every edit, reorders included.
 9. Edit goals and maps only within the request. Link an existing item under an
    existing impact when the person names that goal or impact; invent no actors or
-   impacts. Replace a `GAP:` leaf only when told the item closes that gap.
+   impacts. Replace a `GAP:` leaf only when told. Never edit a closed goal's map.
 10. After every edit, including code while starting an item, run `python3 <skill dir>/scripts/inwoven.py check --root DIR`
     and relevant repo checks. List check and guard as ran / not needed / could not run;
     name each command, exit code and printed output. After acceptance, row or lesson changes,
@@ -99,6 +98,21 @@ Use the selected folder's path relative to the repo root as DIR below.
     byte for byte, then run check and guard. An edit by the person means show the row again
     and ask again. With a step 7 question too, one question per line, the lesson question last.
     At 30 live lessons name the one to retire with the new row. Name an Enforced by check only if it exists.
+## Set up Inwoven
+
+When the person asks to set up Inwoven, follow https://backlog.works/setup.md; the steps in short:
+- Find out what you can do: push, web requests, read the person's mail, drive their browser. Never ask.
+- Infer email (git config user.email), product name (the repo), repo, branch, path, and a goal only if the README,
+   roadmap or issues state what the product is for. Ask one question, once, with all of it; if told to go ahead, state it.
+- Draft items from real work only (README, issues, TODOs, commits); never invent one. Write the files with `init`, the
+   AGENTS.md block, the skill, learnings.md; commit and push if you can.
+- POST /api/v1/setup, show the person the match code. A hosted backlog: approve from their mail if you can read it, else ask them to.
+   A repo: approve in their browser (open the mail link and select Approve, or ask them to); it carries on to GitHub. The install_url only works in that browser or after they sign in with the setup's email. Do not end your turn while the person approves: poll from the moment you have a poll_token, every 5 seconds for up to 15 minutes, until connected or approved; follow each `next`. Tell the person once that you are waiting, and stop with the `next` sentence if the time runs out.
+- Keep the API key where the person keeps secrets; never print or commit it. Report the board link, what you drafted
+   and the key's name.
+A goal is one plain sentence on what the product should achieve; its measure says how you will know. Never invent one.
+No goal in the repo: write none and say so.
+
 ## Tools and formats
 
 Resolve <skill dir> to the folder containing this SKILL.md; run scripts with --help first.
@@ -111,7 +125,7 @@ use `check --kind backlog FILE` or the corresponding kind.
 `init [KIND...] --root DIR` creates missing files; kinds backlog, goals, impact, wardley, learnings; default backlog. It never overwrites.
 Replace the example only in a newly created file. Never add frontmatter to existing files.
 New files have title and updated frontmatter; nonempty updated must be a real calendar date.
-Read only the matching reference when editing that kind of product file:
+Read only the matching reference for the file kind you edit:
 - [Backlog format](references/backlog-format.md)
 - [Goals format](references/goals-format.md)
 - [Impact format](references/impact-format.md)

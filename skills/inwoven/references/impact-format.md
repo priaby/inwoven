@@ -11,19 +11,23 @@ updated: 2026-10-13
 # Impact maps
 
 ## Make choices clear
+<!-- goal-2 -->
 - People choosing work
   - Explain the reason for the next item
     - K417 Explain the reason
     - GAP: Test whether the reason is clear
 ```
 
-One `## <goal>` section per goal. Goal headings must be nonempty and unique
-when whitespace is collapsed. Sections for past goals can remain as history.
-When an id appears in several maps, read maps for open goals first.
-The heading is the goal text exactly as in goals.md, with runs of whitespace
-read as one space. Case differences name different goals. The heading names the
-goal; its measure and horizon are in goals.md. If you rename a goal, rename its
-map heading too.
+One `## <goal>` section per goal. The line right under the heading is the goal's id
+as an HTML comment, `<!-- goal-2 -->`: the id is the key, the one in `goals.md`
+(invisible on GitHub). A map belongs to its goal, never to a slot: Now, Next and Later
+are positions, the map follows the goal when it moves. A section without the comment still
+matches by its heading text (older files); add the comment when you touch it.
+Goal headings must be nonempty and unique when whitespace is collapsed. The heading is the
+goal text exactly as in goals.md, with runs of whitespace read as one space. Case differences
+name different goals. If you reword a goal, change its map heading text too and keep the id comment.
+A closed goal's map stays in the file under its id as history and is frozen: never edit a closed
+goal's map (the product refuses it). When an item id appears in several maps, read maps for open goals first.
 Goal heading limit: 200 characters.
 Use three list levels: actor, impact, leaf. The impact states the actor's change.
 Use spaces for indentation, never tabs. `-`, `*` and `+` list markers are read.

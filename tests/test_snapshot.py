@@ -9,6 +9,10 @@ from test_public import FIXTURES, git, run
 import shutil
 
 
+# Z325: a Done row an agent writes carries its Accepted and From notes, or check fails it
+DONE = 'Done<br>Accepted: 2026-10-14 by Product Owner<br>From: In Progress'
+
+
 class SnapshotTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(prefix='inwoven snapshot ')
@@ -37,7 +41,7 @@ class SnapshotTests(unittest.TestCase):
         manual = self.before.replace('In Progress', 'Done<br>Accepted: 2026-10-14', 1)
         self.path.write_text(manual, encoding='utf-8')
         self.assertEqual(self.context(self.event('PreToolUse')), '')
-        self.path.write_text(manual.replace('In Progress', 'Done', 1), encoding='utf-8')
+        self.path.write_text(manual.replace('In Progress', DONE, 1), encoding='utf-8')
         context = self.context(self.event('PostToolUse'))
         self.assertIn('Did the person ask in this conversation for K418 to be Done? If not, undo it now.', context)
         self.assertNotIn('K417', context)
@@ -47,14 +51,14 @@ class SnapshotTests(unittest.TestCase):
 
     def test_housekeeping_is_not_request_gated(self):
         self.event('PreToolUse')
-        self.path.write_text(self.before.replace('In Progress', 'Done', 1), encoding='utf-8')
+        self.path.write_text(self.before.replace('In Progress', DONE, 1), encoding='utf-8')
         context = self.context(self.event('PostToolUse'))
         date_line = next(line for line in context.splitlines() if 'updated' in line)
         self.assertNotIn('Did the person', date_line)
         self.assertIn('Set updated to ', date_line)
 
     def test_no_snapshot_untracked_and_new_file_are_format_only(self):
-        self.path.write_text(self.before.replace('In Progress', 'Done', 1), encoding='utf-8')
+        self.path.write_text(self.before.replace('In Progress', DONE, 1), encoding='utf-8')
         self.assertEqual(self.context(self.event('PostToolUse')), '')
         git(self.repo, 'rm', '--cached', 'backlog.md')
         self.event('PreToolUse')
@@ -68,7 +72,7 @@ class SnapshotTests(unittest.TestCase):
 
     def test_session_and_tool_call_isolation(self):
         self.event('PreToolUse')
-        self.path.write_text(self.before.replace('In Progress', 'Done', 1), encoding='utf-8')
+        self.path.write_text(self.before.replace('In Progress', DONE, 1), encoding='utf-8')
         self.assertEqual(self.context(self.event('PostToolUse', session='other')), '')
         self.assertEqual(self.context(self.event('PostToolUse', call='other')), '')
         self.assertIn('K417 to be Done', self.context(self.event('PostToolUse')))
@@ -78,7 +82,8 @@ class SnapshotTests(unittest.TestCase):
         self.path.write_text('broken', encoding='utf-8')
         result = self.event('PostToolUse')
         self.assertEqual((result.returncode, result.stdout), (2, ''))
-        self.assertIn('restore backlog header', result.stderr)
+        self.assertIn('restore backlog header `| Item (PBI) | Core Job | Context | Status | Driver |` and separator `|---|---|---|---|---|`', result.stderr)
+        self.assertNotIn('|---|---|---|---|---|---|', result.stderr)
         self.assertEqual(list(self.state.rglob('*.json')), [])
 
     def test_cancelled_call_cleanup_and_bounds(self):
@@ -87,7 +92,7 @@ class SnapshotTests(unittest.TestCase):
         files = list(self.state.rglob('*.json'))
         self.assertEqual(len(files), 1)
         os.utime(files[0], (1, 1))
-        self.path.write_text(self.before.replace('In Progress', 'Done', 1), encoding='utf-8')
+        self.path.write_text(self.before.replace('In Progress', DONE, 1), encoding='utf-8')
         self.assertEqual(self.context(self.event('PostToolUse')), '')
         self.assertEqual(list(self.state.rglob('*.json')), [])
         for n in range(40):
@@ -107,7 +112,7 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(list(self.state.rglob('*.json')), [])
         self.path.write_text(self.before, encoding='utf-8')
         self.event('PreToolUse', call='')
-        self.path.write_text(self.before.replace('In Progress', 'Done', 1), encoding='utf-8')
+        self.path.write_text(self.before.replace('In Progress', DONE, 1), encoding='utf-8')
         self.assertEqual(self.context(self.event('PostToolUse', call='')), '')
 
     def test_patch_move_has_no_row_reminder(self):
@@ -160,7 +165,7 @@ class SnapshotTests(unittest.TestCase):
         patch = '*** Begin Patch\n*** Update File: backlog.md\n*** Update File: goals.md\n*** End Patch'
         event = dict(session_id='siblings', tool_use_id='call', cwd=str(self.repo), tool_name='apply_patch', tool_input=dict(command=patch))
         run('hook', input=json.dumps(dict(event, hook_event_name='PreToolUse')), env=self.env)
-        self.path.write_text(self.before.replace('In Progress', 'Done', 1), encoding='utf-8')
+        self.path.write_text(self.before.replace('In Progress', DONE, 1), encoding='utf-8')
         (self.repo / 'goals.md').write_text('broken', encoding='utf-8')
         result = run('hook', input=json.dumps(dict(event, hook_event_name='PostToolUse')), env=self.env)
         self.assertEqual(result.returncode, 2)

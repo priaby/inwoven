@@ -27,13 +27,18 @@ ID = r"[" + ALPHABET + r"][1-9][0-9]{2}"
 ROW = re.compile(r"^\| ([A-Z]\d{3})\. ")
 HEADERS = {
     "backlog": "| Item (PBI) | Core Job | Context | Status | Driver |",
-    "goals": "| Goal | Measure | Horizon | Set | Achieved |",
+    "goals": "| Goal | Measure | Horizon | Set | Closed | Outcome | Id |",
     "users": "| User | Stage | Needs |",
     "components": "| Component | Stage | Row | Moving to | Depends on | Items |",
     "learnings": "| Lesson | Enforced by | Item | Date |",
 }
+SIX = "| Goal | Measure | Horizon | Set | Closed | Outcome |"
 LEGACY = "| Goal | Set | Achieved |"
-PREFIXES = ("Sprint:", "Due:", "Accepted:", "Waiting on:")
+FIVE = "| Goal | Measure | Horizon | Set | Achieved |"
+OUTCOMES = ("Achieved", "Missed", "Dropped")
+PREFIXES = ("Sprint:", "Due:", "Accepted:", "Waiting on:", "From:")
+SYNONYMS = ("complete", "completed", "closed", "finished", "resolved")  # read as legacy words, never as Done
+STATUS_FORMS = {"todo": "To Do", "inprogress": "In Progress", "done": "Done"}
 STATUSES = ("", "To Do", "In Progress", "Done")
 HORIZONS = ("Now", "Next", "Later")
 STAGES = ("genesis", "custom", "product", "commodity")
@@ -79,6 +84,13 @@ def key(value):
     return " ".join(value.split())
 
 
+def owns(goal, section):
+    """A map belongs to its goal by id (the `<!-- goal-<n> -->` line under its heading); a section without one, by text."""
+    if section.get("id"):
+        return goal.get("id") == section["id"]
+    return key(goal["title"]) == key(section["goal"])
+
+
 def allowed_text(value):
     return (bool(value.strip()) and len(value.strip()) <= 200 and
             not value.strip().endswith("\\") and "<br>" not in value.lower() and
@@ -90,6 +102,41 @@ def gap_text_ok(text):
     """A Wardley gap: 1 to 80 characters with whitespace collapsed, no | , \\ or <br, no control or invisible characters."""
     return (0 < len(text) <= 80 and not any(c in text for c in "|,\\") and "<br" not in text.lower() and
             not any(unicodedata.category(c) in ("Cc", "Cs", "Cf") for c in text))
+
+
+def status_problems(ident, status, tags):
+    """What an agent's write got wrong about Done (Z325): each message names the fix. Only the Product Owner accepts,
+    through the app, so Done and Accepted: go together or not at all. Other legacy words (Blocked) stay allowed."""
+    accepted = any(t.startswith("Accepted:") for t in tags)
+    form = STATUS_FORMS.get(re.sub(r"[\s_-]+", "", status).casefold())
+    out = []
+    if form and status != form:
+        out.append(ident + " status " + repr(status) + " differs only in case or spacing; write " +
+                   ("`In Progress` and report it finished: only the Product Owner accepts, through the app" if form == "Done" else "`" + form + "` exactly"))
+    elif status.casefold() in SYNONYMS:
+        out.append(ident + " status " + repr(status) + " is not a status; write `In Progress` and report it finished: "
+                   "only the Product Owner accepts, through the app")
+    if status == "Done" and not accepted:
+        out.append(ident + " is Done without an `Accepted:` note; set it back to `In Progress` and report it finished: "
+                   "only the Product Owner accepts, through the app")
+    if any(t.startswith("From:") and t[5:].strip().casefold() == "done" for t in tags):
+        out.append(ident + " has `From: Done`; `From:` holds the status before Done: write `To Do`, `In Progress` or the word the item had")
+    if accepted and status != "Done":
+        out.append(ident + " has an `Accepted:` note but is not Done; remove the note: only the Product Owner accepts, through the app")
+    return out
+
+
+def head_cells(path):
+    """The Status cell of each row in the file at git HEAD, by id; None without git, a repository or a HEAD copy."""
+    if not shutil.which("git"):
+        return None
+    try:
+        folder = path.resolve().parent
+        repo = Path(git(folder, "rev-parse", "--show-toplevel").strip()).resolve()
+        text = git(folder, "show", "HEAD:" + path.resolve().relative_to(repo).as_posix())
+    except (subprocess.CalledProcessError, OSError, ValueError, UnicodeError):
+        return None
+    return {r["id"]: r["cells"][3] for r in read_backlog(text.splitlines(), [])}
 
 
 def read_backlog(lines, errors):
@@ -146,15 +193,15 @@ def read_backlog(lines, errors):
 
 
 def read_goals(lines, errors):
-    start = next((n for n, line in enumerate(lines) if line.rstrip() in (HEADERS["goals"], LEGACY)), -1)
-    count = 3 if start >= 0 and lines[start].rstrip() == LEGACY else 5
+    start = next((n for n, line in enumerate(lines) if line.rstrip() in (HEADERS["goals"], SIX, FIVE, LEGACY)), -1)
+    count = {LEGACY: 3, FIVE: 5, SIX: 6}.get(lines[start].rstrip(), 7) if start >= 0 else 7
     if start < 0 or start + 1 >= len(lines) or not separator(lines[start + 1], count):
         if start >= 0:
             errors.append((start + 1, "restore separator `" + "|" + "---|" * count + "` after header `" + lines[start] + "`"))
         else:
-            errors.append((1, "restore goals header `" + HEADERS["goals"] + "` and separator `|---|---|---|---|---|`"))
+            errors.append((1, "restore goals header `" + HEADERS["goals"] + "` and separator `|---|---|---|---|---|---|---|`"))
         return []
-    result, n = [], start + 2
+    result, n, ids = [], start + 2, set()
     while n < len(lines) and lines[n].startswith("|"):
         c, number = cells(lines[n]), n + 1
         n += 1
@@ -164,35 +211,63 @@ def read_goals(lines, errors):
         if count == 3:
             title, set_on, achieved = c
             measure, horizon = "", "" if achieved else "Now"
-        else:
+        elif count == 5:
             title, measure, horizon, set_on, achieved = c
+        elif count == 6:
+            title, measure, horizon, set_on, achieved, outcome = c
+        else:
+            title, measure, horizon, set_on, achieved, outcome, goal_id = c
+        if count < 6:
+            outcome = "Achieved" if achieved else ""
+        if count < 7:
+            goal_id = ""
+        elif not re.fullmatch(r"goal-[1-9][0-9]{0,8}", goal_id):
+            errors.append((number, "Id must be goal-<number>"))
+        elif goal_id in ids:
+            errors.append((number, "Id " + goal_id + " is used twice"))
+        ids.add(goal_id)
+        outcome, _, note = outcome.partition("<br>")
+        outcome, note = outcome.strip(), note.strip()
         if not title:
             errors.append((number, "empty goal"))
+        if len(note) > 200:
+            errors.append((number, "note exceeds 200 characters"))
+        if "<br>" in note.lower():
+            errors.append((number, "note must not contain <br>"))
         for label, value in (("goal", title), ("measure", measure)):
             if len(value) > 200:
                 errors.append((number, label + " exceeds 200 characters"))
         if achieved:
             if not iso(achieved):
-                errors.append((number, "Achieved must be a real ISO date"))
-            if horizon:
-                errors.append((number, "achieved Horizon must be empty"))
-        elif horizon not in HORIZONS:
-            errors.append((number, "Horizon must be Now, Next or Later"))
-        if achieved or horizon == "Now":
+                errors.append((number, "Closed must be a real ISO date"))
+            if horizon and horizon not in HORIZONS:
+                errors.append((number, "closed Horizon must be Now, Next, Later or empty"))
+            if outcome not in OUTCOMES:
+                errors.append((number, "Outcome must be Achieved, Missed or Dropped"))
+        else:
+            if horizon not in HORIZONS:
+                errors.append((number, "Horizon must be Now, Next or Later"))
+            if count >= 6 and c[5]:
+                errors.append((number, "open Outcome must be empty"))
+        if achieved:  # a goal dropped from Next or Later was never Now: it may have no Set
+            if (set_on or horizon in ("", "Now")) and not iso(set_on):
+                errors.append((number, "Set must be a real ISO date"))
+        elif horizon == "Now":
             if not iso(set_on):
                 errors.append((number, "Set must be a real ISO date"))
         elif set_on:
             errors.append((number, "Next and Later Set must be empty"))
-        result.append(dict(title=title, measure=measure, horizon=horizon, achieved=achieved, line=number))
+        result.append(dict(title=title, measure=measure, horizon=horizon, closed=achieved, line=number, id=goal_id,
+                           outcome=outcome))
     if any(line.startswith("|") for line in lines[n:]):
         errors.append((n + 1, "second goals table"))
     seen, rank, last_date = set(), -1, "9999-99-99"
     for goal in result:
-        h, a, number = goal["horizon"], goal["achieved"], goal["line"]
+        h, a, number = goal["horizon"], goal["closed"], goal["line"]
         current = 3 if a else HORIZONS.index(h) if h in HORIZONS else -1
         if a:
             if a > last_date:
-                errors.append((number, "achieved goals must be newest first"))
+                errors.append((number, "closed goals must be newest first"))
             last_date = a
         else:
             if h in seen:
@@ -329,9 +404,16 @@ def read_impact(lines, errors):
     seen = set()
     for section in sections:
         goal, number = section["goal"], section["line"]
-        if not goal or key(goal) in seen:
+        section["id"] = ""
+        if section["body"] and section["body"][0][0] == number + 1:  # the goal's id, on the line under its heading
+            tagged = re.fullmatch(r"<!-- (goal-[1-9][0-9]{0,8}) -->[ \t]*", section["body"][0][1])
+            if tagged:
+                section["id"] = tagged.group(1)
+                section["body"] = section["body"][1:]
+        ident = section["id"] or key(goal)
+        if not goal or ident in seen:
             errors.append((number, "empty or duplicate goal heading"))
-        seen.add(key(goal))
+        seen.add(ident)
         if len(goal) > 200:
             errors.append((number, "goal heading exceeds 200 characters"))
         stack, roots = [], section["actors"]
@@ -541,6 +623,14 @@ def check(root, paths, kind=None, today=None):
             if detected == "backlog":
                 notes.extend((str(path), row["line"], "note: example row; replace it with your requested work and a minted id")
                              for row in data if row["title"].startswith("Example:"))
+                # Z325: only rows whose Status cell changed since HEAD are held to the Done rules; without HEAD they warn
+                head = head_cells(path)
+                for row in data:
+                    for message in status_problems(row["id"], row["status"], row["tags"]):
+                        if head is not None and row["cells"][3] != head.get(row["id"]):
+                            errors.append((str(path), row["line"], message))
+                        elif head is None:
+                            notes.append((str(path), row["line"], "warning: " + message))
                 notes.extend((str(path), row["line"], "note: unknown status " + repr(row["status"]) +
                               "; new edits use To Do, In Progress or Done")
                              for row in data if row["status"] not in STATUSES + ("Ready",))
@@ -622,7 +712,7 @@ def context(root, ident, today=None):
     else:
         print("Missing backlog row for " + ident)
     goals = documents["goals"] or []
-    maps = sorted(documents["impact"] or [], key=lambda m: not any(key(g["title"]) == key(m["goal"]) and not g["achieved"] for g in goals))
+    maps = sorted(documents["impact"] or [], key=lambda m: not any(owns(g, m) and not g["closed"] for g in goals))
     linked = False
     for section in maps:
         for actor in section["actors"]:
@@ -630,8 +720,10 @@ def context(root, ident, today=None):
                 if any(leaf["kind"] == "item" and leaf["text"] == ident for leaf in change["children"]):
                     linked = True
                     print("Goal: " + section["goal"])
-                    goal = next((g for g in goals if key(g["title"]) == key(section["goal"])), None)
+                    goal = next((g for g in goals if owns(g, section)), None)
                     print("Measure: " + ((goal["measure"] or "missing") if goal else "missing goal in goals.md"))
+                    if goal and goal["closed"]:
+                        print("Closed goal (" + goal["outcome"] + "): its map is frozen; do not edit it")
                     print("Actor: " + actor["text"] + "; change: " + change["text"])
     if not linked:
         print("Missing impact link for " + ident)
@@ -761,7 +853,7 @@ def init(root, kinds):
 def recognizes(text, kind):
     lines = re.split(r"\r\n|\r|\n", text) if kind in ("impact", "wardley") else text.splitlines()
     if kind in ("backlog", "goals", "learnings"):
-        headers = (HEADERS[kind], LEGACY) if kind == "goals" else (HEADERS[kind],)
+        headers = (HEADERS[kind], SIX, FIVE, LEGACY) if kind == "goals" else (HEADERS[kind],)
         return any(line.rstrip() in headers for line in lines)
     if kind == "wardley":
         return any(line.startswith("## ") and line[3:].strip().lower() in ("users", "components") for line in lines)

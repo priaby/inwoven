@@ -65,7 +65,7 @@ class PublicTests(unittest.TestCase):
         self.assertTrue(1 <= len(fields['description'].strip().strip('"')) <= 200)
         self.assertNotIn(': ', fields['description'])
         self.assertTrue(fields['description'].strip().startswith('"'))
-        self.assertLessEqual(len(text.splitlines()), 120)
+        self.assertLessEqual(len(text.splitlines()), 140)
         self.assertLessEqual(set(fields), {'name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools'})
 
     def test_new_id_and_errors(self):

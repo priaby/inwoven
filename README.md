@@ -16,6 +16,13 @@ read why it matters and check the product files. It includes references for
 backlog.md, goals.md, impact.md, wardley.md and learnings.md. The last holds lessons
 your team approved; the agent proposes one line at a time and writes it only after your yes.
 
+## Set up Inwoven
+
+Tell your agent: `Set up Inwoven for this repo: https://backlog.works/setup.md`. The skill
+carries the same steps. The agent drafts the files from your repo, starts a setup session,
+and you approve one mail and allow the GitHub app. It writes a goal only when your README
+or issues state one. See the [setup guide](https://backlog.works/setup.md).
+
 Tested: Linux, macOS and Windows; Python 3.9 and 3.13, plus 3.11 on Linux;
 Claude Code, Codex CLI and GitHub CLI installs from the published repo and candidate. [CI checks](.github/workflows/ci.yml)
 and [install checks](.github/workflows/install.yml) run on pushes and nightly.
@@ -183,7 +190,7 @@ Use active instructions; read missing ones whole through the product folder. Cod
 - Read linked context first; say what optional context is missing and continue. Completion never implies Done.
 - Read live lessons before work. Propose at most one lesson per item at completion or acceptance: show the full row, ask last, write it only after yes.
 - Do not mark Done, add Accepted or Reopened, reorder, delete or add items on your own initiative. On the person's explicit request in this conversation, do exactly that and nothing more.
-- Accept In Progress on request: `Done<br>Accepted: <YYYY-MM-DD> by Product Owner`, then existing tags in order.
+- Accept a To Do or In Progress item on request: `Done<br>Accepted: <YYYY-MM-DD> by Product Owner`, then existing tags in order.
 - Reopen Done on request: set the requested open status, remove Accepted, add Reopened first if absent, keep other tags.
 - Add each requested new item; if a title already exists, ask first, naming its id, and still add the others. Use the person's words and leave unprovided cells empty. Put it where asked or last; top means row 1.
 - Before adding, run `python3 <skill dir>/scripts/inwoven.py new-id --root DIR`; never pick ids by hand. Say what was written.

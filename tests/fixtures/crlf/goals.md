@@ -4,7 +4,7 @@ updated: 2026-10-13
 ---
 # Product Goal
 
-| Goal | Measure | Horizon | Set | Achieved |
-|---|---|---|---|---|
-| Make choices clear | Fewer unexplained items | Now | 2026-10-13 |  |
-| Test another direction |  | Next |  |  |
+| Goal | Measure | Horizon | Set | Closed | Outcome | Id |
+|---|---|---|---|---|---|---|
+| Make choices clear | Fewer unexplained items | Now | 2026-10-13 |  |  | goal-1 |
+| Test another direction |  | Next |  |  |  | goal-2 |

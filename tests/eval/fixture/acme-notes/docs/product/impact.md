@@ -5,6 +5,7 @@ updated: 2026-10-05
 # Impact maps
 
 ## Make finding a note instant
+<!-- goal-1 -->
 
 - People with many notes
   - Find a note by typing a few letters
@@ -18,6 +19,7 @@ updated: 2026-10-05
     - C306
 
 ## Let teams work on notes together
+<!-- goal-2 -->
 
 - Team leads
   - Send a note to a teammate without copying text

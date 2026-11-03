@@ -31,7 +31,9 @@ Before adding a requested item, run `python3 <skill dir>/scripts/inwoven.py new-
 Wardley and git history. Put the row where requested, otherwise last.
 Core Job is the person's job the item serves; Context explains the request.
 Use only the person's words for title, Core Job, Context and Driver; leave
-unprovided cells empty. Driver names are comma-separated. Say what was written.
+unprovided cells empty. Driver names are comma-separated. The Driver is a person,
+never an agent: write the name the Driver column already uses for them, spelled the
+same way, and never Claude, Codex or your own name. Say what was written.
 
 Title limit: 80 characters. Context limit: 280 characters.
 Do not put a pipe or a newline inside a cell.
@@ -43,22 +45,23 @@ Other legacy words read as To Do with the original word shown as a tag;
 keep new edits in the supported vocabulary. Check accepts legacy Ready and other
 status words, but prints a non-failing note for unknown words so typos are visible.
 
-Tag kinds: Sprint:, Due:, Accepted:, Waiting on:, Ready, Reopened.
+Tag kinds: Sprint:, Due:, Accepted:, Waiting on:, Ready, Reopened, From:.
 Tags follow `<br>` and empty tags are ignored. Exact flag words: Ready, Reopened.
-Valued prefixes: Sprint:, Due:, Accepted:, Waiting on:.
-These four colon prefixes carry values and have no tag length limit.
+Valued prefixes: Sprint:, Due:, Accepted:, Waiting on:, From:.
+These five colon prefixes carry values and have no tag length limit.
 Plain tag limit: 20 characters. Do not put work narrative in tags.
 Write prefixes exactly, with capitals and the colon.
 Add `Waiting on: <condition>` when blocked; keep other tags.
 Do not mark Done, add Accepted or Reopened, reorder, delete or add items on your
 own initiative. On the person's explicit request, do exactly that and nothing more.
-Ask whether close means accept or cancel. To accept or mark done an In Progress item on request, write
-`Done<br>Accepted: <today as YYYY-MM-DD> by Product Owner`, followed by existing
-tags in order. Example: `In Progress<br>Sprint: S2` becomes
-`Done<br>Accepted: 2026-10-13 by Product Owner<br>Sprint: S2`.
+Ask whether close means accept or cancel. To accept or mark done a To Do or In Progress item on request, write
+`Done<br>Accepted: <today as YYYY-MM-DD> by Product Owner<br>From: <status before>`, followed by existing
+tags in order. `From:` holds the status the item had (`To Do`, `In Progress` or a legacy word as it was); it has no
+length limit and the board does not show it. Example: `In Progress<br>Sprint: S2` becomes
+`Done<br>Accepted: 2026-10-13 by Product Owner<br>From: In Progress<br>Sprint: S2`.
 The suffix `by Product Owner` is the product's acceptance convention, treating
 the accepting person as that role. Report who requested acceptance; follow repo instructions if they name the acceptor.
-To reopen Done on request, remove every `Accepted:` tag and add `Reopened` first
+To reopen Done on request, remove every `Accepted:` tag and the `From:` tag, and add `Reopened` first
 if absent; set the requested open status and preserve the other tags.
 Add each requested item that is new. If a title matches or nearly matches an existing
 one (a near-duplicate), do not add it; ask, naming the existing id, and still add the
@@ -68,10 +71,19 @@ If the file has frontmatter, set `updated:` to today as YYYY-MM-DD; do not add
 frontmatter otherwise. Empty updated is absent; a nonempty value must be a real date.
 Preserve unrelated bytes, row order and ids except for the requested change.
 
+## What check fails (Z325)
+
+`check` fails a row whose Status cell you changed when it is `Done` with no `Accepted:` note, holds an `Accepted:`
+note without being `Done`, or has a status that differs from To Do, In Progress or Done only in case (`done`) or is a
+synonym (`Complete`, `Completed`, `Closed`, `Finished`, `Resolved`). Each message names the fix. Only changed rows are
+checked (the Status cell differs from the file at git HEAD, matched by id; a new row counts as changed), because older
+rows were written when a plain `Done` was allowed and nobody should have to rewrite them. Without git or a HEAD copy
+these are warnings. Other legacy words (`Blocked`) stay allowed.
+
 ## Status examples
 
 Before: `In Progress<br>Sprint: S2`.
-Accept on request: `Done<br>Accepted: 2026-10-14 by Product Owner<br>Sprint: S2`.
+Accept on request: `Done<br>Accepted: 2026-10-14 by Product Owner<br>From: In Progress<br>Sprint: S2`.
 Reopen on request: `In Progress<br>Reopened<br>Sprint: S2`.
 Block: `In Progress<br>Sprint: S2<br>Waiting on: legal sign-off`.
 The example date is illustrative; use today's date and report who asked.

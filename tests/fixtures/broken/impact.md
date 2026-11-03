@@ -5,6 +5,7 @@ updated: 2026-02-30
 # Impact maps
 
 ## Make choices clear
+<!-- goal-1 -->
 - People choosing work
   - Explain the reason for the next item
     - K417 Explain the reason
