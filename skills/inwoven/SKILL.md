@@ -105,11 +105,11 @@ When the person asks to set up Inwoven, follow https://backlog.works/setup.md; t
 - Infer email (git config user.email), product name (the repo), repo, branch, path, and a goal only if the README,
    roadmap or issues state what the product is for. Ask one question, once, with all of it; if told to go ahead, state it.
 - Draft items from real work only (README, issues, TODOs, commits); never invent one. Write the files with `init`, the
-   AGENTS.md block, the skill, learnings.md; commit and push if you can.
+   AGENTS.md block, the skill, learnings.md; push if you can.
 - POST /api/v1/setup, show the person the match code. A hosted backlog: approve from their mail if you can read it, else ask them to.
-   A repo: approve in their browser (open the mail link and select Approve, or ask them to); it carries on to GitHub. The install_url only works in that browser or after they sign in with the setup's email. Do not end your turn while the person approves: poll from the moment you have a poll_token, every 5 seconds for up to 15 minutes, until connected or approved; follow each `next`. Tell the person once that you are waiting, and stop with the `next` sentence if the time runs out.
-- Keep the API key where the person keeps secrets; never print or commit it. Report the board link, what you drafted
-   and the key's name.
+   Approve only your own setup: send your poll_token with the approval, match the mail's code to yours, never approve another Inwoven mail.
+   A repo: approve in their browser (select Approve in the mail's link, or ask them to); it goes on to GitHub once signed in as the setup's email, else asks for a sign-in code from their mail. Do not end your turn while the person approves: poll from the moment you have a poll_token, every 5 seconds for up to 15 minutes, until connected or approved; follow each `next`. Say once you are waiting; at the limit, stop with the `next` sentence.
+- Keep the API key where the person keeps secrets; never print or commit it. Report the board link, what you drafted and the key's name.
 A goal is one plain sentence on what the product should achieve; its measure says how you will know. Never invent one.
 No goal in the repo: write none and say so.
 
