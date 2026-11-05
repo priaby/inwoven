@@ -15,7 +15,7 @@ workflow difference. Keep the file formats in the references.
 ## Product files
 
 - backlog.md: one row per item. Row order is priority.
-- goals.md: goals with ids, measures, horizons Now, Next, Later.
+- goals.md: goals with ids, measures, horizons Now, Next, Later. Goals live only here.
 - impact.md: goal maps of actors, changes and item ids, by goal id.
 - wardley.md: users, components, dependencies and linked item ids.
 - learnings.md: lessons the person approved, with check, item and date.
@@ -108,7 +108,7 @@ When the person asks to set up Inwoven, follow https://backlog.works/setup.md; t
    AGENTS.md block, the skill, learnings.md; push if you can.
 - POST /api/v1/setup, show the person the match code. A hosted backlog: approve from their mail if you can read it, else ask them to.
    Approve only your own setup: send your poll_token with the approval, match the mail's code to yours, never approve another Inwoven mail.
-   A repo: approve in their browser (select Approve in the mail's link, or ask them to); it goes on to GitHub once signed in as the setup's email, else asks for a sign-in code from their mail. Do not end your turn while the person approves: poll from the moment you have a poll_token, every 5 seconds for up to 15 minutes, until connected or approved; follow each `next`. Say once you are waiting; at the limit, stop with the `next` sentence.
+   A repo: approve in their browser (select Approve in the mail's link, or ask them to); it then goes on to GitHub. Do not end your turn while the person approves: poll from your poll_token every 5 seconds for up to 15 minutes, until connected or approved; follow each `next`. Say once you are waiting; at the limit, stop with the `next` sentence.
 - Keep the API key where the person keeps secrets; never print or commit it. Report the board link, what you drafted and the key's name.
 A goal is one plain sentence on what the product should achieve; its measure says how you will know. Never invent one.
 No goal in the repo: write none and say so.
@@ -117,9 +117,8 @@ No goal in the repo: write none and say so.
 
 Resolve <skill dir> to the folder containing this SKILL.md; run scripts with --help first.
 The checker needs Python 3.9+: `python3 <skill dir>/scripts/inwoven.py <command>`.
-If Python or git cannot run, validate by the references and report `unchecked: <reason>`;
-never claim a pass. `check [FILE...]` skips missing optional files; for another filename
-use `check --kind backlog FILE` or the corresponding kind.
+If Python or git cannot run, validate by the references and report `unchecked: <reason>`; never claim a pass. `check [FILE...]` skips missing optional files; for another filename use `check --kind backlog FILE`.
+`move-goals --root DIR` moves a goal block from backlog.md into goals.md (`check` errors on one).
 `new-id --count N` mints random unused ids; `context ID` reads linked context.
 `guard --base GIT_REF` needs git on PATH; it reports changes and never edits.
 `init [KIND...] --root DIR` creates missing files; kinds backlog, goals, impact, wardley, learnings; default backlog. It never overwrites.

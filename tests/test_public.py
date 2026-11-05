@@ -231,6 +231,125 @@ class PublicTests(unittest.TestCase):
         self.assertIn('Missing goals.md', result.stdout)
         self.assertEqual(run('context', 'Z999', '--root', self.root).returncode, 1)
 
+    def test_context_reads_a_product_goal_written_in_the_backlog_when_goals_md_is_missing(self):
+        shutil.copy(FIXTURES / 'backlog-goal' / 'backlog.md', self.root / 'backlog.md')
+        for kind in KINDS[1:]:
+            (self.root / (kind + '.md')).unlink()
+        result = run('context', 'K417', '--root', self.root)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Missing goals.md', result.stdout)
+        self.assertIn('Product Goal in backlog.md, Now: The freelancers and small practices Sam and Lee bring in personally run '
+                      'their real invoicing on Acme and pay for it. Measure: practices sending real invoices, first paid purchases, '
+                      'and a written reason from everyone who declines', result.stdout)
+        self.assertIn('Product Goal in backlog.md, Next: Strangers find and pay for Acme without a personal introduction. Measure: '
+                      'paying customers from ads, search, and from invoices existing users send', result.stdout)
+        self.assertIn('Product Goal in backlog.md, Later: Solo professionals', result.stdout)
+
+    def test_context_with_a_goals_md_does_not_read_the_block_as_goals_but_says_to_move_it(self):
+        shutil.copy(FIXTURES / 'backlog-goal' / 'backlog.md', self.root / 'backlog.md')
+        result = run('context', 'K417', '--root', self.root)
+        self.assertNotIn('Product Goal in backlog.md', result.stdout)
+        self.assertIn('Run `inwoven.py move-goals`', result.stdout)
+        self.assertIn('never write a goal into backlog.md', result.stdout)
+
+    def test_check_reports_a_goal_block_in_the_backlog_as_an_error_naming_move_goals(self):
+        shutil.copy(FIXTURES / 'backlog-goal' / 'backlog.md', self.root / 'backlog.md')
+        result = run('check', '--root', self.root)
+        self.assertEqual(result.returncode, 1)
+        self.assertRegex(result.stderr, r'backlog\.md:7: a Product Goal block in backlog\.md; goals live in goals\.md only: run `inwoven\.py move-goals`')
+
+    def long_history_row_only_warns(self):
+        """The history paragraph is kept whole (as the block is): its row is over 200 characters, and that is a warning, never an error."""
+        result = run('check', '--root', self.root)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertRegex(result.stderr, r'goals\.md:\d+: warning: goal exceeds 200 characters')
+        context = run('context', 'K417', '--root', self.root)  # an agent session starts, warning or not
+        self.assertEqual(context.returncode, 0, context.stderr)
+        self.assertIn('K417', context.stdout)
+        self.assertIn('warning: goal exceeds 200 characters', context.stderr)
+
+    def test_move_goals_creates_goals_md_removes_exactly_the_block_and_then_check_passes(self):
+        original = (FIXTURES / 'backlog-goal' / 'backlog.md').read_bytes()
+        shutil.copy(FIXTURES / 'backlog-goal' / 'backlog.md', self.root / 'backlog.md')
+        (self.root / 'goals.md').unlink()
+        result = run('move-goals', '--root', self.root, '--today', '2026-11-05')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Moved to goals.md: Now, Next, Later.', result.stdout)
+        text = (self.root / 'goals.md').read_text(encoding='utf-8')
+        self.assertIn('| Now | 2026-09-16 |', text)
+        moved = (self.root / 'backlog.md').read_bytes()
+        start = original.index(b'Product Goal, Now')
+        end = original.index(b'from revenue.\n\n') + len(b'from revenue.\n\n')
+        rest = original[:start] + original[end:]
+        old = rest.index(b'Previous goal (superseded')
+        self.assertEqual(moved, rest[:old] + rest[rest.index(b'want Acme.\n\n') + len(b'want Acme.\n\n'):])
+        self.assertIn('| Now | 2026-07-10 | 2026-09-16 | Dropped<br>Superseded; moved from backlog.md |', text)
+        self.long_history_row_only_warns()
+        again = run('move-goals', '--root', self.root)
+        self.assertIn('nothing to move', again.stdout)
+        self.assertEqual((self.root / 'backlog.md').read_bytes(), moved)
+
+    def test_a_previous_goal_paragraph_without_a_block_is_left_alone(self):
+        text = ('# B\n\nPrevious goal (superseded 2026-09-16): accepted 2026-07-10, old.\n\n'
+                '| Item (PBI) | Core Job | Context | Status | Driver |\n|---|---|---|---|---|\n')
+        (self.root / 'backlog.md').write_text(text, encoding='utf-8')
+        before = (self.root / 'goals.md').read_bytes()
+        result = run('move-goals', '--root', self.root)
+        self.assertIn('nothing to move', result.stdout)
+        self.assertEqual((self.root / 'backlog.md').read_text(encoding='utf-8'), text)
+        self.assertEqual((self.root / 'goals.md').read_bytes(), before)
+
+    def test_check_names_move_goals_for_each_previous_goal_paragraph_after_a_block(self):
+        text = ('# B\n\nProduct Goal:\n\n> **Now:** Ship it.\n\nPrevious goal: one.\n\nPrevious goals: two.\n\nNot history.\n\n'
+                '| Item (PBI) | Core Job | Context | Status | Driver |\n|---|---|---|---|---|\n')
+        (self.root / 'backlog.md').write_text(text, encoding='utf-8')
+        result = run('check', '--root', self.root)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(len(re.findall(r'a Previous goal paragraph after the Product Goal block.*move-goals', result.stderr)), 2, result.stderr)
+
+    def test_a_previous_goal_paragraph_alone_is_not_flagged_by_check(self):
+        (self.root / 'backlog.md').write_text('# B\n\nPrevious goal: one.\n\n| Item (PBI) | Core Job | Context | Status | Driver |\n|---|---|---|---|---|\n', encoding='utf-8')
+        self.assertNotIn('Previous goal', run('check', '--root', self.root).stderr)
+
+    def test_move_goals_refuses_a_goals_md_the_server_would_refuse_and_writes_nothing(self):
+        shutil.copy(FIXTURES / 'backlog-goal' / 'backlog.md', self.root / 'backlog.md')
+        before = (self.root / 'backlog.md').read_bytes()
+        goals = (self.root / 'goals.md').read_text(encoding='utf-8')
+        for label, broken in (('two open Now rows', goals + '| Another | | Now | 2026-10-01 | | | goal-9 |\n'),
+                              ('a bad id', goals.replace('goal-1 |', 'g1 |', 1))):
+            with self.subTest(label):
+                (self.root / 'goals.md').write_text(broken, encoding='utf-8')
+                result = run('move-goals', '--root', self.root)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn('fix goals.md first', result.stderr)
+                self.assertEqual((self.root / 'backlog.md').read_bytes(), before)
+                self.assertEqual((self.root / 'goals.md').read_text(encoding='utf-8'), broken)
+
+    def test_a_new_goals_md_title_is_the_name_then_the_backlog_title_then_product(self):
+        base = '# B\n\nProduct Goal:\n\n> **Now:** Ship it.\n\n| Item (PBI) | Core Job | Context | Status | Driver |\n|---|---|---|---|---|\n'
+        for text, extra, title in (('---\ntitle: "Our backlog"\n---\n' + base, [], 'Our backlog goals'), ('---\ntitle: "Our backlog"\n---\n' + base, ['--name', 'Acme'], 'Acme goals'), (base, ['--name', 'Acme'], 'Acme goals'), (base, [], 'Product goals')):
+            (self.root / 'backlog.md').write_text(text, encoding='utf-8')
+            (self.root / 'goals.md').unlink(missing_ok=True)
+            self.assertEqual(run('move-goals', '--root', self.root, *extra).returncode, 0)
+            self.assertIn('title: "' + title + '"', (self.root / 'goals.md').read_text(encoding='utf-8'))
+
+    def test_move_goals_keeps_crlf(self):
+        crlf = (FIXTURES / 'backlog-goal' / 'backlog.md').read_bytes().replace(b'\n', b'\r\n')
+        (self.root / 'backlog.md').write_bytes(crlf)
+        (self.root / 'goals.md').unlink()
+        self.assertEqual(run('move-goals', '--root', self.root).returncode, 0)
+        data = (self.root / 'backlog.md').read_bytes()
+        self.assertEqual(data.count(b'\r\n'), data.count(b'\n'))
+
+    def test_move_goals_keeps_a_different_goal_in_goals_md_and_drops_the_blocks_text_beside_it(self):
+        shutil.copy(FIXTURES / 'backlog-goal' / 'backlog.md', self.root / 'backlog.md')
+        result = run('move-goals', '--root', self.root, '--today', '2026-11-05')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('already had a different goal', result.stdout)
+        text = (self.root / 'goals.md').read_text(encoding='utf-8')
+        self.assertIn('Dropped<br>Moved from backlog.md; goals.md already had a goal', text)
+        self.long_history_row_only_warns()
+
     def test_init_preserves_bytes(self):
         empty = self.root / 'new folder'
         result = run('init', *KINDS, '--root', empty)

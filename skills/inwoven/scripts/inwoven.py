@@ -279,6 +279,251 @@ def read_goals(lines, errors):
     return result
 
 
+GOAL_ENTRY = re.compile(r"^(?:\*\*)?(Now|Next|Later)(?::\*\*|\*\*:|:)\s*(.*)$", re.I)
+GOAL_MEASURE = re.compile(r"(?:^|(?<=[.!?])\s+)(?:Measured as|Measure:)\s*", re.I)
+DROPPED_NOTE = "Moved from backlog.md; goals.md already had a goal"
+MOVE_SUBJECT = "move the Product Goal from backlog.md to goals.md"
+
+
+PREVIOUS_GOAL = re.compile(r"^previous goals?\b\s*(?:\(([^)]*)\))?\s*:?\s*(.*)$", re.I | re.S)
+SUPERSEDED_NOTE = "Superseded; moved from backlog.md"
+LONG_TEXT = re.compile(r"(?:goal|measure|note) exceeds 200 characters$")
+
+
+def split_warnings(kind, problems):
+    """(errors, warnings): a goal, measure or note over 200 characters already in goals.md is a warning, because the limit applies to text a
+    write introduces and the person's own text stays whole."""
+    if kind != "goals":
+        return list(problems), []
+    return [p for p in problems if not LONG_TEXT.search(p[1])], [p for p in problems if LONG_TEXT.search(p[1])]
+
+
+def dated(label, text):
+    """The first real ISO date right after `label` in `text`, else ''."""
+    for found in re.finditer(label + r"\s+(\d{4}-\d{2}-\d{2})\b", text, re.I):
+        if iso(found.group(1)):
+            return found.group(1)
+    return ""
+
+
+def find_previous_goals(lines, n):
+    """Every consecutive paragraph, from the first one after line `n` that starts "Previous goal" or "Previous goals" and before the table
+    or a heading, in document order (the run ends at the first paragraph that does not start so): [{first, last, text, set_on, closed_on}]
+    (goal history, which is goals.md's too)."""
+    result = []
+    while n < len(lines) and not lines[n].startswith(("|", "#")):
+        if not lines[n].strip():
+            n += 1
+            continue
+        first = n
+        while n < len(lines) and lines[n].strip():
+            n += 1
+        joined = " ".join(line.strip() for line in lines[first:n])
+        found = PREVIOUS_GOAL.match(joined)
+        if found and found.group(2).strip():
+            result.append({"first": first, "last": n - 1, "text": found.group(2).strip(), "set_on": dated("accepted", joined),
+                           "closed_on": dated("superseded", found.group(1) or "") or dated("superseded", joined)})
+        elif result:
+            break
+    return result
+
+
+def find_goal_block(lines):
+    """The Product Goal written in backlog.md's preamble: an intro paragraph that starts "Product Goal", then a blockquote of
+    **Now:**, **Next:**, **Later:** entries. None, or {first, last, end, set_on, goals: [(horizon, text, measure)]} with Now first;
+    the block is lines first..end (0-based). A sentence starting "Measured as" or "Measure:" is the measure. Mirrors the app's reader."""
+    heading = next((n for n, line in enumerate(lines) if line.startswith("# ")), -1)
+    n = heading + 1
+    while heading >= 0 and n < len(lines) and not lines[n].startswith("|"):
+        if lines[n].strip() and re.match(r"product goal\b", lines[n].strip(), re.I):
+            first = n
+            while n < len(lines) and lines[n].strip() and not lines[n].lstrip().startswith(">"):
+                n += 1
+            last = n - 1
+            while n < len(lines) and not lines[n].strip():
+                n += 1
+            bodies, current = {}, None
+            while n < len(lines) and lines[n].lstrip().startswith(">"):
+                line = lines[n].lstrip()[1:].strip()
+                n += 1
+                found = GOAL_ENTRY.match(line)
+                if found:
+                    current = found.group(1).title()
+                    if current in bodies:
+                        current = None
+                    else:
+                        bodies[current] = [found.group(2)]
+                elif line and current is not None:
+                    bodies[current].append(line)
+            result = []
+            for horizon in HORIZONS:
+                body = " ".join(" ".join(bodies.get(horizon, [])).split())
+                split = GOAL_MEASURE.search(body)
+                text, measure = (body[:split.start()].strip(), body[split.end():].strip().rstrip(".").strip()) if split else (body, "")
+                if text:
+                    result.append((horizon, text, measure))
+            if not result or result[0][0] != "Now":
+                return None
+            intro = " ".join(line.strip() for line in lines[first:last + 1])
+            dates = (m for m in re.findall(r"\b(\d{4}-\d{2}-\d{2})\b", intro) if iso(m))
+            return {"first": first, "last": last, "end": n - 1, "set_on": next(dates, ""), "goals": result,
+                    "previous": find_previous_goals(lines, n), "title": metadata(lines).get("title", "")}
+        while n < len(lines) and lines[n].strip():
+            n += 1
+        n += 1
+    return None
+
+
+def backlog_goal_block(lines):
+    """[(horizon, text, measure)] of the block, or [] without one."""
+    found = find_goal_block(lines)
+    return found["goals"] if found else []
+
+
+def goal_cell(value):
+    """One table cell from the person's words: `|`, `<br>` and control characters would break the row, so they become `/` or a space."""
+    value = re.sub(r"<br\s*/?>", " ", value.replace("|", "/"), flags=re.I)
+    return " ".join("".join(" " if unicodedata.category(c) in ("Cc", "Cs") or c in "\u2028\u2029" else c for c in value).split())
+
+
+def without_goal_block(text):
+    """backlog.md text without the block (intro paragraph, quote and the blank lines after it); every other byte kept. None without a block."""
+    block = find_goal_block(text.splitlines())
+    if block is None:
+        return None
+    plain, kept = text.splitlines(), text.splitlines(keepends=True)
+    def through_blanks(last):
+        while last + 1 < len(plain) and not plain[last + 1].strip():
+            last += 1
+        return last
+    spans = [(block["first"], through_blanks(block["end"]))]
+    spans += [(old["first"], through_blanks(old["last"])) for old in block["previous"]]  # goal history is goals.md's too
+    return "".join(line for n, line in enumerate(kept) if not any(a <= n <= b for a, b in spans))
+
+
+def goals_problems(text):
+    """The goals.md problems that are not just a text over the 200 character limit (a text the person wrote stays whole)."""
+    errors = []
+    read_goals(text.splitlines(), errors)
+    return [(n, message) for n, message in errors if not LONG_TEXT.search(message)]
+
+
+def goals_with_block(goals_text, block, name, today):
+    """(goals.md text, added, same, dropped): the block's horizons written into goals.md (a new seven-column file when there is none).
+    An empty horizon takes the block's goal; a horizon with the same words stays; a different goal stays and the block's text becomes a
+    closed Dropped row with a note. Mirrors the app's move, which `docs/product/goals.md` of the product then reads."""
+    header, bar = HEADERS["goals"], "|" + "---|" * 7
+    if goals_text is None:
+        goals_text = '---\ntitle: "' + ((name or block.get("title") or "Product") + " goals").replace("\\", "\\\\").replace('"', '\\"') + '"\nupdated: ' + today + "\n---\n# Product Goal\n\n" + header + "\n" + bar + "\n"
+    bad = goals_problems(goals_text)
+    if bad:
+        raise ValueError("goals.md is not valid (line " + str(bad[0][0]) + ": " + bad[0][1] + "); fix goals.md first (run check), then run move-goals")
+    lines = goals_text.splitlines(keepends=True)
+    start = next((n for n, line in enumerate(lines) if line.rstrip() == header), -1)
+    if start < 0 or start + 1 >= len(lines) or not separator(lines[start + 1], 7):
+        raise ValueError("goals.md needs the seven-column table before a goal can move into it; see references/goals-format.md")
+    stop = start + 2
+    while stop < len(lines) and lines[stop].startswith("|"):
+        stop += 1
+    rows = [line.rstrip("\r\n") for line in lines[start + 2:stop]]
+    if any(len(row.split("|")) != 9 for row in rows):
+        raise ValueError("goals.md has a row that is not seven cells; fix it with check, then move the goal")
+    endings = [line[len(line.rstrip("\r\n")):] for line in lines[start + 2:stop]]
+    newline = next((e for line in lines for e in [line[len(line.rstrip("\r\n")):]] if e), "\n")
+    prefix = lines[:start + 2]
+    if not rows and not prefix[-1].endswith(("\r", "\n")):
+        prefix[-1] += newline
+    seq = [(row, ending) for row, ending in zip(rows, endings)]
+    present = {key(row.split("|")[1]) for row, _ in seq}  # every row's goal text, open or closed
+    open_at = {}
+    for row, _ in seq:
+        c = row.split("|")
+        if not c[5].strip():
+            open_at.setdefault(c[3].strip(), key(c[1]))
+    number = max([int(row.split("|")[7].strip()[5:]) for row, _ in seq if re.fullmatch(r"goal-[1-9][0-9]{0,8}", row.split("|")[7].strip())] or [0]) + 1
+    added, same, dropped = [], [], []
+    for horizon, text, measure in block["goals"]:
+        words, note = goal_cell(text), goal_cell(measure)
+        set_on = (block["set_on"] or today) if horizon == "Now" else ""
+        mine = open_at.get(horizon)
+        if key(words) in present:  # the same words are a row already, open or closed, in any horizon
+            same.append(horizon)
+            continue
+        closed = lambda row: row.split("|")[5].strip()
+        if mine is None:
+            body = "| {} | {} | {} | {} |  |  | goal-{} |".format(words, note, horizon, set_on, number)
+            at = next((n for n, (row, _) in enumerate(seq) if closed(row) or (row.split("|")[3].strip() in HORIZONS
+                      and HORIZONS.index(row.split("|")[3].strip()) > HORIZONS.index(horizon))), len(seq))
+            added.append(horizon)
+        else:
+            body = "| {} | {} | {} | {} | {} | Dropped<br>{} | goal-{} |".format(words, note, horizon, set_on, today, DROPPED_NOTE, number)
+            at = next((n for n, (row, _) in enumerate(seq) if closed(row) and closed(row) <= today), len(seq))
+            dropped.append(horizon)
+        seq.insert(at, (body, None))
+        number += 1
+    history = False
+    for old in block["previous"]:  # each a closed Dropped row: Set = accepted (a closed Now row needs one), Closed = superseded, else the Set date, else today
+        words = goal_cell(old["text"])
+        if key(words) in present:
+            continue
+        closed_on = old["closed_on"] or block["set_on"] or today
+        body = "| {} |  | Now | {} | {} | Dropped<br>{} | goal-{} |".format(words, old["set_on"] or closed_on, closed_on, SUPERSEDED_NOTE, number)
+        seq.insert(next((n for n, (row, _) in enumerate(seq) if row.split("|")[5].strip() and row.split("|")[5].strip() < closed_on), len(seq)), (body, None))
+        present.add(key(words))
+        number += 1
+        history = True
+    if not (added or dropped or history):
+        return goals_text, [], same, [], False
+    last_bare = bool(endings and not endings[-1]) or (not rows and not lines[start + 1].endswith(("\r", "\n")))
+    out = [(row, ending or newline) for row, ending in seq]
+    if last_bare:
+        out[-1] = (out[-1][0], "")
+    head = "".join(prefix)
+    if lines and lines[0].rstrip() == "---":  # frontmatter: updated is today
+        close = next((n for n, line in enumerate(prefix) if n and line.rstrip() == "---"), -1)
+        if close > 0:
+            fm = list(prefix)
+            at = next((n for n in range(1, close) if re.match(r"updated:", fm[n])), -1)
+            if at > 0:
+                fm[at] = "updated: " + today + fm[at][len(fm[at].rstrip("\r\n")):]
+            else:
+                fm.insert(close, "updated: " + today + newline)
+            head = "".join(fm)
+    result = head + "".join(row + ending for row, ending in out) + "".join(lines[stop:])
+    bad = goals_problems(result)
+    if bad:
+        raise ValueError("the moved goals.md would not be valid (line " + str(bad[0][0]) + ": " + bad[0][1] + "); fix goals.md first (run check), then run move-goals")
+    return result, added, same, dropped, history
+
+
+def move_goals(root, today=None, name=""):
+    """Move backlog.md's Product Goal block into goals.md (goals live in goals.md only). Writes goals.md first, then backlog.md."""
+    backlog_path, goals_path = root / "backlog.md", root / "goals.md"
+    if not backlog_path.exists():
+        raise ValueError("no backlog.md in " + str(root) + "; pass --root <folder>")
+    backlog = backlog_path.read_bytes().decode("utf-8")
+    block = find_goal_block(backlog.splitlines())
+    if block is None:
+        print("No Product Goal block in backlog.md; nothing to move.")
+        return 0
+    today = as_today(today).isoformat()
+    goals_text = goals_path.read_bytes().decode("utf-8") if goals_path.exists() else None
+    text, added, same, dropped, history = goals_with_block(goals_text, block, name, today)
+    if text != goals_text:
+        goals_path.write_bytes(text.encode("utf-8"))
+    backlog_path.write_bytes(without_goal_block(backlog).encode("utf-8"))
+    if added:
+        print("Moved to goals.md: " + ", ".join(added) + ".")
+    if same:
+        print("Already in goals.md with the same words: " + ", ".join(same) + ".")
+    if dropped:
+        print("goals.md already had a different goal at " + ", ".join(dropped) + ": it kept its goal, and the moved text is a closed Dropped row.")
+    if history:
+        print("The Previous goal paragraph is a closed Dropped row in goals.md.")
+    print("Removed the Product Goal block from backlog.md. Goals live in goals.md only.")
+    return 0
+
+
 def plural(count, word):
     return str(count) + " " + word + ("" if count == 1 else "s")
 
@@ -621,6 +866,12 @@ def check(root, paths, kind=None, today=None):
             if detected == "learnings":
                 notes.extend((str(path), n, message) for n, message in learning_notes(data, backlog_ids(path.parent)))
             if detected == "backlog":
+                block = find_goal_block(path.read_text(encoding="utf-8").splitlines())
+                if block:  # goals live in goals.md only
+                    errors.append((str(path), block["first"] + 1, "a Product Goal block in backlog.md; goals live in goals.md only: "
+                                   "run `inwoven.py move-goals` to move it"))
+                    errors.extend((str(path), old["first"] + 1, "a Previous goal paragraph after the Product Goal block; goals live in goals.md "
+                                   "only: run `inwoven.py move-goals` to move it") for old in block["previous"])
                 notes.extend((str(path), row["line"], "note: example row; replace it with your requested work and a minted id")
                              for row in data if row["title"].startswith("Example:"))
                 # Z325: only rows whose Status cell changed since HEAD are held to the Done rules; without HEAD they warn
@@ -634,7 +885,9 @@ def check(root, paths, kind=None, today=None):
                 notes.extend((str(path), row["line"], "note: unknown status " + repr(row["status"]) +
                               "; new edits use To Do, In Progress or Done")
                              for row in data if row["status"] not in STATUSES + ("Ready",))
-            errors.extend((str(path), n, msg) for n, msg in problems)
+            bad, long_texts = split_warnings(detected, problems)
+            errors.extend((str(path), n, msg) for n, msg in bad)
+            notes.extend((str(path), n, "warning: " + msg + "; kept whole, a new goal is limited to 200") for n, msg in long_texts)
             checked.append(path.name)
         except (OSError, UnicodeError, ValueError) as exc:
             errors.append((str(path), 1, str(exc)))
@@ -700,11 +953,20 @@ def context(root, ident, today=None):
         documents[kind] = data
         if data is None:
             print("Missing " + kind + ".md")
+            if kind == "goals":  # a goal written in the backlog's preamble counts while goals.md is missing
+                for horizon, text, measure in backlog_goal_block((root / "backlog.md").read_text(encoding="utf-8").splitlines()
+                                                                 if (root / "backlog.md").exists() else []):
+                    print("Product Goal in backlog.md, " + horizon + ": " + text + (" Measure: " + measure if measure else ""))
+        problems, warnings = split_warnings(kind, problems)  # a warning is printed and never stops the context
         for n, message in problems:
             print("{}:{}: {}".format(root / (kind + ".md"), n, message), file=sys.stderr)
+        for n, message in warnings:
+            print("{}:{}: warning: {}".format(root / (kind + ".md"), n, message), file=sys.stderr)
         # A lessons file never blocks starting work: its parsed rows still print below.
         if problems and kind != "learnings":
             return 1
+    if backlog_goal_block((root / "backlog.md").read_text(encoding="utf-8").splitlines() if (root / "backlog.md").exists() else []):
+        print("Goals live in goals.md only. Run `inwoven.py move-goals` to move the Product Goal block out of backlog.md; never write a goal into backlog.md.")
     row = next((r for r in documents["backlog"] or [] if r["id"] == ident), None)
     if row:
         print(row["row"])
@@ -1158,10 +1420,11 @@ def today_arg(value):
 def main():
     parser = argparse.ArgumentParser(description="Check and read Inwoven product files; create missing templates safely.")
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("check", "new-id", "context", "guard", "init"):
+    for name in ("check", "new-id", "context", "guard", "init", "move-goals"):
         descriptions = dict(check="Validate product files", **{"new-id": "Mint random unused item ids"},
                             context="Read an item's goals, maps and lessons", guard="Report changes requiring a request",
-                            init="Create requested missing product files")
+                            init="Create requested missing product files",
+                            **{"move-goals": "Move a Product Goal block from backlog.md into goals.md"})
         p = commands.add_parser(name, help=descriptions[name])
         p.add_argument("--root", type=Path, default=Path("docs/product"), help="product files directory; default: docs/product relative to the current folder")
         if name == "check":
@@ -1172,6 +1435,9 @@ def main():
             p.add_argument("--count", type=int, default=1, help="number of unused ids; default: 1")
         elif name == "context":
             p.add_argument("id", help="item id, for example K417")
+            p.add_argument("--today", type=today_arg, help="today as YYYY-MM-DD; default: the local date")
+        elif name == "move-goals":
+            p.add_argument("--name", default="", help="product name for a new goals.md title; default: backlog.md's front-matter title, else Product")
             p.add_argument("--today", type=today_arg, help="today as YYYY-MM-DD; default: the local date")
         elif name == "guard":
             p.add_argument("--base", required=True, help="git revision to compare; fetch it first")
@@ -1191,6 +1457,8 @@ def main():
             return new_ids(args.root, args.count)
         if args.command == "context":
             return context(args.root, args.id, args.today)
+        if args.command == "move-goals":
+            return move_goals(args.root, args.today, args.name)
         if args.command == "guard":
             return guard(args.root, args.base, args.today)
         if any(k not in FILES for k in args.kinds):

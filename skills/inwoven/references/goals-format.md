@@ -2,6 +2,13 @@
 
 File: goals.md beside the selected backlog.md, unless the person names another path.
 
+Goals live only in goals.md. Never write a goal into backlog.md. An older backlog.md may hold a Product Goal block: a paragraph
+starting "Product Goal" after the title (and any "Previous goal" paragraphs right after it), then a quote of `**Now:**`, `**Next:**`, `**Later:**` entries, where a sentence starting
+"Measured as" is the measure. `check` reports it as an error. Run `inwoven.py move-goals`: it writes the block's goals into goals.md
+(Set is the date in the paragraph, else today) and removes the paragraph and the quote from backlog.md, nothing else. If goals.md
+already has a goal at a horizon with other words, that goal stays and the block's text becomes a closed row, Dropped, with the note
+`Moved from backlog.md; goals.md already had a goal`. Each "Previous goal (superseded <date>): accepted <date>, ..." paragraph becomes its own closed Dropped row (Set the accepted date, Closed the superseded date), unless the same words are a row already. A block goal whose words are already a row, open or closed, is not added again. A new goals.md is titled "<`--name`, else the backlog front-matter title, else Product> goals". The app does the same move the first time a member opens the board.
+
 ```markdown
 ---
 title: "Example goals"
@@ -17,7 +24,7 @@ updated: 2026-10-13
 ```
 
 Keep the header line exactly as in the example.
-Cells per row: 7. Goal and measure limit: 200 characters each.
+Cells per row: 7. Goal and measure limit: 200 characters each, for text you write; a goal, measure or note already in the file that is longer stays whole and is only a warning.
 Goal must be nonempty; Measure can be empty.
 Horizons: Now, Next, Later.
 Keep at most one open goal per horizon, in that order, before closed goals.

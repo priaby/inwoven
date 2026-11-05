@@ -117,6 +117,7 @@ Use that script path for these commands:
 | new-id --count N | Before requested additions | Random unused ids |
 | context ID | Before starting or answering which goal an item serves | Row, goals, measures and maps; missing links; live lessons |
 | guard --base HEAD | After requested row, lesson or acceptance changes, before committing | Changes to confirm and stale updated dates; exit 1 if found, 2 if comparison failed |
+| move-goals | backlog.md holds a Product Goal block; `check` reports it as an error | Moves the goals into goals.md and removes the block from backlog.md; nothing else changes |
 | init [KIND...] | When asked to create files; default backlog only | Created or kept paths and next step |
 
 Add --today YYYY-MM-DD to check, context or guard to fix the date in tests.
@@ -184,7 +185,7 @@ The block alone works in OpenCode; command reporting can vary.
 ## Product files
 Use docs/product/ unless the person or repo names another path; context files are beside backlog.md.
 Use active instructions; read missing ones whole through the product folder. Codex selects AGENTS.override.md before AGENTS.md; nearer files win.
-- backlog.md: rows in priority order; goals.md: goals and measures; impact.md: actors and changes; wardley.md: dependencies; learnings.md: lessons the person approved.
+- backlog.md: rows in priority order; goals.md: goals and measures, the only place goals live (never write one into backlog.md); impact.md: actors and changes; wardley.md: dependencies; learnings.md: lessons the person approved.
 ## Working an item
 - Work the named item, otherwise the highest In Progress item without Waiting on:. Start To Do only when asked.
 - Read linked context first; say what optional context is missing and continue. Completion never implies Done.

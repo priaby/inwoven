@@ -1,7 +1,7 @@
 # Backlog format
 
 File: docs/product/backlog.md, or the path the person names.
-Row order is priority. Add and order items only when the person asks.
+Row order is priority. Add and order items only when the person asks. backlog.md holds rows, never a goal: goals live in goals.md.
 "The top" means the first row regardless of Status.
 
 ```markdown
