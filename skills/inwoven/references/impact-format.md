@@ -42,6 +42,7 @@ A leaf is an existing item id, or an id, a space and text, for example
 A gap is `GAP: <text>`, in capitals.
 Use the [backlog id format](backlog-format.md). A gap must have nonempty text.
 Do not repeat an item id within one impact. The same id can occur in other impacts.
+An item under several impacts shows as one card with several connections.
 Missing backlog ids are not parser format problems; report missing links.
 
 Add backlog items only on the person's request; a gap does not authorize a row.

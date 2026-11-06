@@ -33,6 +33,7 @@ class MetadataTests(unittest.TestCase):
     def test_manifest_and_install_metadata(self):
         root = json.loads((TREE / 'plugin.json').read_text())
         self.assertEqual(root, json.loads((TREE / '.claude-plugin/plugin.json').read_text()))
+        self.assertEqual(root['version'], '0.8.0')
         self.assertRegex(root['version'], r'\A(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)\Z')
         market = json.loads((TREE / '.claude-plugin/marketplace.json').read_text())
         self.assertEqual(market['name'], root['name'])
@@ -62,7 +63,7 @@ class MetadataTests(unittest.TestCase):
         self.assertTrue(1 <= len(fields['description']) <= 200)
         self.assertTrue(text.splitlines()[2].startswith('description: "'))
         self.assertLessEqual(len(text.splitlines()), 140)
-        self.assertLessEqual(len(text.encode('utf-8')), 10500)
+        self.assertLessEqual(len(text.encode('utf-8')), 10700)
         for malformed in ('description: a: b', 'description: text # comment', 'name: a\nname: b', 'description: [bad'):
             with self.assertRaises(ValueError): frontmatter('---\n' + malformed + '\n---\n')
 

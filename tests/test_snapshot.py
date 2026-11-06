@@ -10,7 +10,7 @@ import shutil
 
 
 # Z325: a Done row an agent writes carries its Accepted and From notes, or check fails it
-DONE = 'Done<br>Accepted: 2026-10-14 by Product Owner<br>From: In Progress'
+DONE = 'Done<br>Accepted: 2026-10-14 by Dana Reyes<br>From: In Progress'
 
 
 class SnapshotTests(unittest.TestCase):

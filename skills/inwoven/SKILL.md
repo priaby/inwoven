@@ -54,8 +54,10 @@ DIR below is that folder's path from the repo root.
    own initiative. When the person asks for one of these in this conversation,
    do exactly that and nothing more. If the person says close, ask whether close means accept or cancel.
    "Mark done" or "accept" for a To Do or In Progress item means acceptance; proceed without another question:
-    `Done<br>Accepted: <today as YYYY-MM-DD> by Product Owner<br>From: <status before>`,
-   then existing tags in order. Report who requested it; repo instructions may name the acceptor.
+    `Done<br>Accepted: <today as YYYY-MM-DD> by <name><br>From: <status before>`,
+   then existing tags in order. `<name>` is the person accepting (the product's Owner or an Editor): take it from
+   `git config user.name` in the repo you edit; if empty, ask the person on whose behalf you edit; else `unnamed user`.
+   Report who requested it; repo instructions may name the acceptor.
    Reopen Done on request: set requested open status, remove Accepted: and From: tags,
    add Reopened first if absent; keep other tags in order.
    Never add, edit, renew or delete a lesson without a yes in this conversation. Delete an expired row only when the person names it.

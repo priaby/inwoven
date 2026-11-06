@@ -36,6 +36,16 @@
       },
       "pattern": "\\| M231\\. Search notes as you type \\|[^\\n]*\\| Done<br>Accepted: \\d{4}-\\d{2}-\\d{2}(?: by [^|<]+)?(?:<br>[^|]+)? \\| Dana \\|",
       "flags": "i"
+    },
+    {
+      "name": "acceptance_by_git_name",
+      "type": "regex",
+      "target": {
+        "source": "file",
+        "path": "docs/product/backlog.md"
+      },
+      "pattern": "\\| M231\\. Search notes as you type \\|[^\\n]*\\| Done<br>Accepted: \\d{4}-\\d{2}-\\d{2} by Dana Reyes<br>From: In Progress(?:<br>[^|]+)? \\| Dana \\|",
+      "arm": "with-only"
     }
   ]
 }

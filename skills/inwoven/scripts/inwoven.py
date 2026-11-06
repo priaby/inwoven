@@ -105,24 +105,24 @@ def gap_text_ok(text):
 
 
 def status_problems(ident, status, tags):
-    """What an agent's write got wrong about Done (Z325): each message names the fix. Only the Product Owner accepts,
-    through the app, so Done and Accepted: go together or not at all. Other legacy words (Blocked) stay allowed."""
+    """What an agent's write got wrong about Done (Z325): each message names the fix. Only a person with the right
+    accepts, through the app, so Done and Accepted: go together or not at all. Other legacy words (Blocked) stay allowed."""
     accepted = any(t.startswith("Accepted:") for t in tags)
     form = STATUS_FORMS.get(re.sub(r"[\s_-]+", "", status).casefold())
     out = []
     if form and status != form:
         out.append(ident + " status " + repr(status) + " differs only in case or spacing; write " +
-                   ("`In Progress` and report it finished: only the Product Owner accepts, through the app" if form == "Done" else "`" + form + "` exactly"))
+                   ("`In Progress` and report it finished: only a person accepts, through the app" if form == "Done" else "`" + form + "` exactly"))
     elif status.casefold() in SYNONYMS:
         out.append(ident + " status " + repr(status) + " is not a status; write `In Progress` and report it finished: "
-                   "only the Product Owner accepts, through the app")
+                   "only a person accepts, through the app")
     if status == "Done" and not accepted:
         out.append(ident + " is Done without an `Accepted:` note; set it back to `In Progress` and report it finished: "
-                   "only the Product Owner accepts, through the app")
+                   "only a person accepts, through the app")
     if any(t.startswith("From:") and t[5:].strip().casefold() == "done" for t in tags):
         out.append(ident + " has `From: Done`; `From:` holds the status before Done: write `To Do`, `In Progress` or the word the item had")
     if accepted and status != "Done":
-        out.append(ident + " has an `Accepted:` note but is not Done; remove the note: only the Product Owner accepts, through the app")
+        out.append(ident + " has an `Accepted:` note but is not Done; remove the note: only a person accepts, through the app")
     return out
 
 

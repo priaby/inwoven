@@ -161,6 +161,8 @@ def main():
             from learnings_eval import product_dir
             install_block(repo, block_text, product_dir(ident), ".agents/skills/inwoven")
         git("init", "-b", "main")
+        # the name an agent finds for `by <name>` when it accepts (S3); S3N leaves it empty, the case of the name order (X115)
+        git("config", "user.name", "" if ident == "S3N" else "Dana Reyes")
         git("add", "-A")
         git("commit", "-m", "fixture")
         if arm == "D":
@@ -178,6 +180,9 @@ def main():
                             ignore=shutil.ignore_patterns("__pycache__", "tests", "evals"))
         settings = None
         runtime_env = dict(os.environ)
+        if ident == "S3N":
+            # no global or system git name may reach the agent: the repo's empty one is all it can find
+            runtime_env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
         if config != "codex":
             # Isolate skills, plugins, auto-memory and settings while retaining auth only.
             settings = Path(tempfile.mkdtemp(prefix=namespace + "-", dir=work))

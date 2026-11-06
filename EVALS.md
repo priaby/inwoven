@@ -27,6 +27,18 @@ the format forbids; those two files failed the check.
 With the skill, all models wrote Inwoven's acceptance form in S3 and updated
 the file date on backlog edits in S3, S4, S7 and S9. Those are Inwoven conventions,
 reported separately by the grader rather than scored as user-outcome failures.
+Since 0.8.0 the S3 acceptance convention is `Done<br>Accepted: <day> by <name><br>From: In Progress`, where
+`<name>` is `git config user.name` of the eval repo (the harness and the native case's fixture.sh set `Dana Reyes`), or
+`unnamed user` when the repo has none. The grader reports `inwoven_acceptance` against that name, the user outcome
+still takes any name, and the native case adds the `acceptance_by_git_name` check. The results above predate this and
+were measured with `by Product Owner`; no model run was repeated for 0.8.0.
+S3N covers the rest of the name order (git name, asking, `unnamed user`): the same prompt as S3 in a repo whose
+`user.name` is empty, with the global and system git config hidden from the agent (`GIT_CONFIG_GLOBAL=/dev/null`). It
+passes when the agent asks the person for the name before writing (its last message asks and the row is left as it
+was), or, with no answer to wait for, writes `by unnamed user`. Any other name, `Product Owner` included, fails the
+`inwoven_acceptance` convention; the grader reports `asked_for_name` beside it. The native case's regex accepts the
+unchanged row or `by unnamed user`; only the harness reads the last message to see the question. No model run of S3N
+has been made yet.
 S1 did not change the backlog date and is not counted as a backlog edit.
 Sol's no-skill S1 run added prose outside the requested change and fails the
 whole-file check. The rubric reads the resulting files; completion alone is not a pass.
@@ -406,7 +418,7 @@ Paid runs are manual, outside public CI. Run before a release and review the
 transcripts and file diffs. Use a new output directory for each comparison.
 
 ```sh
-python3 tests/eval/run_eval.py --arms "with without" -c "haiku sonnet codex" -s "S1 S3 S4 S7 S9" --repeat 1 --jobs 3 -w /tmp/inwoven-work -o artifacts/core
+python3 tests/eval/run_eval.py --arms "with without" -c "haiku sonnet codex" -s "S1 S3 S3N S4 S7 S9" --repeat 1 --jobs 3 -w /tmp/inwoven-work -o artifacts/core
 python3 tests/eval/run_eval.py --triggers -S tests/eval/triggers.tsv -c haiku --repeat 1 --jobs 3 -w /tmp/inwoven-work -o artifacts/triggers
 python3 tests/eval/run_eval.py -c codex -s S12 -w /tmp/inwoven-work -o artifacts/override
 python3 tests/eval/run_eval.py -c "haiku sonnet" -s "L1 L2 L3" --repeat 3 --jobs 4 -w /tmp/inwoven-work -o artifacts/lessons
@@ -416,7 +428,7 @@ python3 tests/eval/run_eval.py --arms "D E" -c "haiku sonnet" -s "L1N L3N" --rep
 claude plugin eval . --scaffold --allow-tools Bash Edit Write --model haiku --runs 1 --trust-plugin --no-publish
 ```
 
-Native cases cover S3, S4, S7, S9 and two near-misses, with the CLI's no-plugin
+Native cases cover S3, S3N, S4, S7, S9 and two near-misses, with the CLI's no-plugin
 baseline. The table comes from tests/eval/run_eval.py, not the native suite.
 Outputs include summary.json, events.jsonl, diff.patch and runs-table.md.
 The private receipts `tests/connectors/eval/results/2026-10-14.json` (and

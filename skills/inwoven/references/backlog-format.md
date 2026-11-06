@@ -55,12 +55,15 @@ Add `Waiting on: <condition>` when blocked; keep other tags.
 Do not mark Done, add Accepted or Reopened, reorder, delete or add items on your
 own initiative. On the person's explicit request, do exactly that and nothing more.
 Ask whether close means accept or cancel. To accept or mark done a To Do or In Progress item on request, write
-`Done<br>Accepted: <today as YYYY-MM-DD> by Product Owner<br>From: <status before>`, followed by existing
+`Done<br>Accepted: <today as YYYY-MM-DD> by <name><br>From: <status before>`, followed by existing
 tags in order. `From:` holds the status the item had (`To Do`, `In Progress` or a legacy word as it was); it has no
 length limit and the board does not show it. Example: `In Progress<br>Sprint: S2` becomes
-`Done<br>Accepted: 2026-10-13 by Product Owner<br>From: In Progress<br>Sprint: S2`.
-The suffix `by Product Owner` is the product's acceptance convention, treating
-the accepting person as that role. Report who requested acceptance; follow repo instructions if they name the acceptor.
+`Done<br>Accepted: 2026-10-13 by Dana Reyes<br>From: In Progress<br>Sprint: S2`.
+The `by <name>` suffix names the person accepting (the product's Owner or an Editor), the way the app's own Accept does.
+Take `<name>` from `git config user.name` run in the repository you edit; if that is empty or unavailable, ask the person
+on whose behalf you make the change; if there is still no name, write `unnamed user`. Never write a role or your own name.
+Readers accept any name, so notes written earlier stay valid. Report who requested acceptance; follow repo
+instructions if they name the acceptor.
 To reopen Done on request, remove every `Accepted:` tag and the `From:` tag, and add `Reopened` first
 if absent; set the requested open status and preserve the other tags.
 Add each requested item that is new. If a title matches or nearly matches an existing
@@ -83,7 +86,7 @@ these are warnings. Other legacy words (`Blocked`) stay allowed.
 ## Status examples
 
 Before: `In Progress<br>Sprint: S2`.
-Accept on request: `Done<br>Accepted: 2026-10-14 by Product Owner<br>From: In Progress<br>Sprint: S2`.
+Accept on request: `Done<br>Accepted: 2026-10-14 by Dana Reyes<br>From: In Progress<br>Sprint: S2`.
 Reopen on request: `In Progress<br>Reopened<br>Sprint: S2`.
 Block: `In Progress<br>Sprint: S2<br>Waiting on: legal sign-off`.
 The example date is illustrative; use today's date and report who asked.

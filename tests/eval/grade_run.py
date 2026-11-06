@@ -9,6 +9,18 @@ def rows(text):
             for line in text.splitlines() if (m := re.match(r'\| ([A-Z]\d{3})\. ', line))}
 
 
+def acceptor(repo):
+    """The name an accepting agent should write: `git config user.name` in the repo, else the last resort (X115)."""
+    done = subprocess.run(['git', '-C', str(repo), 'config', 'user.name'], capture_output=True, text=True)
+    return done.stdout.strip() or 'unnamed user'
+
+
+def asks_for_name(final):
+    """The agent's last message asks the person for the name to write after `by` (X115: asking comes before `unnamed user`)."""
+    text = final.lower()
+    return '?' in text and 'name' in text
+
+
 def run_date(summary, repo, base):
     recorded = summary.get('run_date')
     if recorded:
@@ -24,7 +36,7 @@ def unchanged_bytes(before, after, ident):
     new_rows = {m.group(1): line for line in after.splitlines(keepends=True)
                 if (m := re.match(rb'\| ([A-Z]\d{3})\. ', line))}
     excluded = set()
-    if ident == 'S3':
+    if ident in ('S3', 'S3N'):
         excluded = {b'M231'}
     elif ident in ('S4', 'S9'):
         excluded = new_rows.keys() - old_rows.keys()
@@ -46,7 +58,7 @@ def unchanged_bytes(before, after, ident):
             result.append(line)
         return b''.join(result)
     rows_unchanged = all(new_rows.get(i) == line for i, line in old_rows.items()
-                         if not (ident == 'S3' and i == b'M231'))
+                         if not (ident in ('S3', 'S3N') and i == b'M231'))
     return rows_unchanged and retain(before) == retain(after)
 
 
@@ -66,15 +78,17 @@ def grade(ident, summary, repo, base):
     require(summary['status'] == 'complete', 'completed turn')
     require(summary['bundled']['rc'] == 0, 'valid product formats')
     require(set(before) <= set(after), 'no deleted existing rows')
-    if ident in ('S1', 'S3', 'S4', 'S9'):
+    if ident in ('S1', 'S3', 'S3N', 'S4', 'S9'):
         require(common == list(before), 'no unsolicited reorder')
     for i, row in before.items():
-        if ident == 'S3' and i == 'M231':
+        if ident in ('S3', 'S3N') and i == 'M231':
             require(after.get(i, [])[:3] == row[:3] and after.get(i, [])[-1:] == row[-1:], 'accept preserves item text')
         else:
             require(after.get(i) == row, 'preserve existing row ' + i)
     status = after.get('M231', ['', '', '', ''])[3]
-    if ident == 'S3':
+    # S3N: no git name in the repo. Asking the person for it and leaving the row alone is an outcome too (X115)
+    asked = ident == 'S3N' and status == before['M231'][3] and asks_for_name(summary.get('final', ''))
+    if ident in ('S3', 'S3N') and not asked:
         require(status.split('<br>')[0] == 'Done' and any(
             re.fullmatch(r'Accepted: ' + re.escape(date) + r'(?: by .+)?', tag.strip())
             for tag in status.split('<br>')[1:]), 'requested Done and acceptance date')
@@ -104,9 +118,12 @@ def grade(ident, summary, repo, base):
         require(not summary['skill_loaded'], 'unrelated format does not activate skill')
     if ident == 'S12':
         require('PRODUCT-OVERRIDE-ACTIVE' in summary['final'] and 'PRODUCT-BASE-ACTIVE' not in summary['final'], 'Codex override precedence')
+    accepted = lambda name: status == 'Done<br>Accepted: ' + date + ' by ' + name + '<br>From: In Progress<br>Sprint: S2'
     conventions = dict(updated_bumped='updated: ' + date in text,
                        empty_status=all(after[i][3] == '' for i in added),
-                       inwoven_acceptance=status == 'Done<br>Accepted: ' + date + ' by Product Owner<br>Sprint: S2' if ident == 'S3' else None,
+                       # S3: the repo's git name. S3N: no git name, so asking for it, or else `unnamed user` (X115)
+                       inwoven_acceptance=accepted(acceptor(repo)) if ident == 'S3' else asked or accepted('unnamed user') if ident == 'S3N' else None,
+                       asked_for_name=asked if ident == 'S3N' else None,
                        duplicate_added=any('dark mode' in title for title in titles) if ident == 'S9' else None)
     return {'pass': not findings, 'failures': findings, 'run_date': date,
             'no_invented_text': all(not any(after[i][j] for j in (1, 2, 4)) for i in added) if ident in ('S4', 'S9') else None,

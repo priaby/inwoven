@@ -1,6 +1,7 @@
 S1	What should I work on next? Then start it.
 S2	The top item is blocked on legal sign-off.
 S3	I finished the top item, mark it done.
+S3N	I finished the top item, mark it done.
 S4	Add an item: export the board as CSV, put it second.
 S5	Add a new Now goal: 50 weekly active teams by March.
 S6	Which goal does item K417 serve?
