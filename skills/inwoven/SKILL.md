@@ -111,12 +111,12 @@ roadmap or issues state its purpose. Ask one question, once, with all of it, unl
 `code` to the person as a message: you cannot speak during a command. They approve there.
 Never tell them to wait for a mail; never approve another Inwoven mail.
 - Do not end your turn. Poll in short calls (one request, or a loop under 30 s), every `retry_after` seconds for 15 minutes. At
-`approved` stop polling, save `key` at once where they keep secrets and keep `poll_token` until the storage answer is sent. Follow each `next`.
+`approved` stop polling, save `key` at once in their secret manager or `~/.config/inwoven/`, never in the repo, and keep `poll_token` until the storage answer is sent. Follow each `next`.
 - After approval ask where the product files are stored: "GitHub, with a backup in Inwoven", "GitHub only" or "Inwoven only".
 POST it to /api/v1/setup/<id>/storage: `{"setup": "backup"|"github"|"inwoven", "repo", "branch", "path"}`. For GitHub
 they confirm the repo on Inwoven's Storage page. At `connected` pull and add the AGENTS.md block, the skill and learnings.md; your key ends.
-- Never print or commit the key. Report board link, drafts, key name.
-A goal is one plain sentence on what the product should achieve, with a measure. Never invent one; none in the repo: say so.
+- Never print the key. Report board link, drafts, key name.
+A goal is one plain sentence with a measure. Never invent one; none in the repo: say so.
 
 ## Tools and formats
 

@@ -33,6 +33,7 @@ Since 0.8.0 the S3 acceptance convention is `Done<br>Accepted: <day> by <name><b
 still takes any name, and the native case adds the `acceptance_by_git_name` check. The results above predate this and
 were measured with `by Product Owner`; no model run was repeated for 0.8.0.
 Version 0.9.0 changes only the Set up Inwoven lines of SKILL.md (the link from the answer, the three setups, the storage answer). No model run was repeated for 0.9.0.
+Version 0.9.1 changes one sentence of the Set up Inwoven lines: the key goes in the person's secret manager or `~/.config/inwoven/`, never a file inside the repository. No model run was repeated for 0.9.1.
 S3N covers the rest of the name order (git name, asking, `unnamed user`): the same prompt as S3 in a repo whose
 `user.name` is empty, with the global and system git config hidden from the agent (`GIT_CONFIG_GLOBAL=/dev/null`). It
 passes when the agent asks the person for the name before writing (its last message asks and the row is left as it
