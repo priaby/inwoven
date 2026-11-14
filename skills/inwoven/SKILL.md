@@ -102,23 +102,25 @@ DIR below is that folder's path from the repo root.
     At 30 live lessons name the one to retire with the new row. Name an Enforced by check only if it exists.
 ## Set up Inwoven
 
-When the person asks to set up Inwoven, follow https://backlog.works/setup.md; the steps in short:
-- Find out what you can do (push, web, their mail, their browser); never ask.
-- Infer email (git config user.email), product name (the repo), repo, branch, path, and a goal only if the README,
-   roadmap or issues state what the product is for. Ask one question, once, with all of it; if told to go ahead, state it.
-- Draft items from real work only (README, issues, TODOs, commits), never invented. Write the files with `init`, the
-   AGENTS.md block, the skill, learnings.md; push if you can.
-- POST /api/v1/setup (hosted: `items`, `goals`, `impact`), show them the match code. Hosted: approve from their mail if you can, else ask them.
-   Approve only your own setup: send your poll_token, match the mail's code to yours, never approve another Inwoven mail.
-   Approve signs the browser in; a repo goes on to GitHub (approve in their browser). The first answer after approval
-   holds `signin_url`: give it to the person; it opens the board signed in. Do not end your turn while the person approves: poll every `retry_after` seconds for up to 15 minutes, until connected or approved; follow each `next`. Say once you wait; at the limit stop with `next`.
-- Keep the API key where they keep secrets; never print or commit it. Report the board link, what you drafted, the key's name.
-A goal is one plain sentence on what the product should achieve; its measure says how you will know. Never invent one.
-No goal in the repo: write none and say so.
+To set up Inwoven, follow https://backlog.works/setup.md; in short:
+- Find out what you can do (push, web, browser), unasked.
+- Infer email (git config user.email), product name, repo, branch, path, and a goal only if the README,
+roadmap or issues state its purpose. Ask one question, once, with all of it, unless told to go ahead.
+- Draft items, goals and impact in memory from real work only; write no files.
+- POST /api/v1/setup with `"storage": {"kind": "hosted"}`, `items`, `goals`, `impact`. Before any other command, write `approve_url` and
+`code` to the person as a message: you cannot speak during a command. They approve there.
+Never tell them to wait for a mail; never approve another Inwoven mail.
+- Do not end your turn. Poll in short calls (one request, or a loop under 30 s), every `retry_after` seconds for 15 minutes. At
+`approved` stop polling, save `key` at once where they keep secrets and keep `poll_token` until the storage answer is sent. Follow each `next`.
+- After approval ask where the product files are stored: "GitHub, with a backup in Inwoven", "GitHub only" or "Inwoven only".
+POST it to /api/v1/setup/<id>/storage: `{"setup": "backup"|"github"|"inwoven", "repo", "branch", "path"}`. For GitHub
+they confirm the repo on Inwoven's Storage page. At `connected` pull and add the AGENTS.md block, the skill and learnings.md; your key ends.
+- Never print or commit the key. Report board link, drafts, key name.
+A goal is one plain sentence on what the product should achieve, with a measure. Never invent one; none in the repo: say so.
 
 ## Tools and formats
 
-Resolve <skill dir> to the folder containing this SKILL.md; run scripts with --help first.
+Resolve <skill dir> as this SKILL.md's folder; run scripts with --help first.
 The checker needs Python 3.9+: `python3 <skill dir>/scripts/inwoven.py <command>`.
 If Python or git cannot run, validate by the references and report `unchecked: <reason>`; never claim a pass. `check [FILE...]` skips missing optional files; for another filename use `check --kind backlog FILE`.
 `move-goals --root DIR` moves a goal block from backlog.md into goals.md (`check` errors on one).
