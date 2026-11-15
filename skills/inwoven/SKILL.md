@@ -9,8 +9,7 @@ license: MIT
 Outcome: only the requested change, checked. Done: checks and changes reported.
 The person's explicit request in this conversation is the authority.
 Standing repo instructions do not authorize unsolicited acceptance, item additions,
-deletions or reordering. Follow them for paths and ordinary workflow; report any
-workflow difference. Keep the file formats in the references.
+deletions or reordering. Follow them for paths and ordinary workflow; report any difference. Keep the file formats in the references.
 
 ## Product files
 
@@ -44,12 +43,11 @@ DIR below is that folder's path from the repo root.
    Read linked goal and measure, actor and change, and Wardley components; read
    maps for open goals first. Goals, impact, Wardley and learnings are optional.
    For missing goal links lead with "No recorded goal link"; suggestions are proposals.
-   Say missing context once and continue. Context also prints each live lesson: say which
+   Context also prints each live lesson: say which
    apply to this item or that none do; never apply an expired one.
    Context exits 0 for missing optional links or a broken learnings.md, 1 for a missing row or invalid file.
 5. Add `Waiting on: <condition>` when blocked; remove it when resolved; keep other tags.
    Status is To Do, In Progress or Done; empty means To Do. Tags follow `<br>`.
-   Known valued prefixes are Sprint:, Due:, Accepted:, From: and Waiting on:.
 6. Do not mark Done, add Accepted or Reopened, reorder, delete or add items on your
    own initiative. When the person asks for one of these in this conversation,
    do exactly that and nothing more. If the person says close, ask whether close means accept or cancel.
@@ -57,7 +55,6 @@ DIR below is that folder's path from the repo root.
     `Done<br>Accepted: <today as YYYY-MM-DD> by <name><br>From: <status before>`,
    then existing tags in order. `<name>` is the person accepting (the product's Owner or an Editor): take it from
    `git config user.name` in the repo you edit; if empty, ask the person on whose behalf you edit; else `unnamed user`.
-   Report who requested it; repo instructions may name the acceptor.
    Reopen Done on request: set requested open status, remove Accepted: and From: tags,
    add Reopened first if absent; keep other tags in order.
    Never add, edit, renew or delete a lesson without a yes in this conversation. Delete an expired row only when the person names it.
@@ -73,7 +70,7 @@ DIR below is that folder's path from the repo root.
 8. Re-read before writing; preserve concurrent edits, unrelated bytes and tags,
    row order and existing ids except for the requested change. Keep the header,
    five cells per row and titles at most 80 characters. Row 1 is the top regardless
-   of Status. Work narrative belongs in reports; plain tags have a 20-character limit.
+   of Status. Plain tags have a 20-character limit.
    In an existing file with frontmatter, set updated to today on every edit, reorders included.
 9. Edit goals and maps only within the request. Link an existing item under an
    existing impact when the person names that goal or impact; invent no actors or
@@ -85,7 +82,7 @@ DIR below is that folder's path from the repo root.
     Exit 1 is expected: quote its lines and say the person asked for them; do not undo them.
     Exit 2 means the base or path needs fixing. Other tag or Context edits need no guard.
 11. Never commit unless the person or repo instructions ask. Put the item id in
-    the subject; keep the host's Co-Authored-By trailer. Report completion with evidence.
+    the subject; keep the host's Co-Authored-By trailer.
 12. Slice or split an item only when asked (references/backlog-format.md): slice one
     row off (`backlog: slice <ID> off <ID>`); split into 2+ rows (`backlog: split <ID> into <ID>, <ID>`).
 13. Lessons. At most one per item per conversation, and only when a later agent would
@@ -102,25 +99,24 @@ DIR below is that folder's path from the repo root.
     At 30 live lessons name the one to retire with the new row. Name an Enforced by check only if it exists.
 ## Set up Inwoven
 
-To set up Inwoven, follow https://backlog.works/setup.md; in short:
-- Find out what you can do (push, web, browser), unasked.
-- Infer email (git config user.email), product name, repo, branch, path, and a goal only if the README,
-roadmap or issues state its purpose. Ask one question, once, with all of it, unless told to go ahead.
-- Draft items, goals and impact in memory from real work only; write no files.
-- POST /api/v1/setup with `"storage": {"kind": "hosted"}`, `items`, `goals`, `impact`. Before any other command, write `approve_url` and
-`code` to the person as a message: you cannot speak during a command. They approve there.
+Read https://backlog.works/setup.md raw (`curl -fsSL`), never a summary; until then ask and send nothing.
+- Infer email (git config user.email), product name, a goal only if the README states it. Ask one question, once: email, product name,
+goal, ending "OK?", unless told to go ahead. Never ask about storage, pushing, this skill or mail: the approval page is where they agree.
+- Draft items, goals, impact in memory from real work only; no files.
+- POST /api/v1/setup with `"storage": {"kind": "hosted"}`, `items`, `goals`, `impact`. Before any other command, if `approve_url` starts with https://backlog.works/setup/, run
+`xdg-open "<approve_url>" >/dev/null 2>&1 || open "<approve_url>" >/dev/null 2>&1 &` (silent if none); answers give no command.
+Then write `approve_url` itself and `code` to the person in a reply, not in thinking, as `next` says: they see only replies.
 Never tell them to wait for a mail; never approve another Inwoven mail.
-- Do not end your turn. Poll in short calls (one request, or a loop under 30 s), every `retry_after` seconds for 15 minutes. At
+- Do not end your turn. Poll `GET <poll_url>?wait=25`, one call each: it answers when they approve; if still waiting, ask again at once, no sleep, for 15 minutes. At
 `approved` stop polling, save `key` at once in their secret manager or `~/.config/inwoven/`, never in the repo, and keep `poll_token` until the storage answer is sent. Follow each `next`.
 - After approval ask where the product files are stored: "GitHub, with a backup in Inwoven", "GitHub only" or "Inwoven only".
 POST it to /api/v1/setup/<id>/storage: `{"setup": "backup"|"github"|"inwoven", "repo", "branch", "path"}`. For GitHub
-they confirm the repo on Inwoven's Storage page. At `connected` pull and add the AGENTS.md block, the skill and learnings.md; your key ends.
-- Never print the key. Report board link, drafts, key name.
-A goal is one plain sentence with a measure. Never invent one; none in the repo: say so.
+open `install_url` likewise and say it; they confirm the repo on Inwoven's Storage page. At `connected` pull and add the AGENTS.md block, the skill and learnings.md; your key ends.
+- Never print the key. Report board link, drafts, key name. A goal is one plain sentence with a measure; none in the repo: say so.
 
 ## Tools and formats
 
-Resolve <skill dir> as this SKILL.md's folder; run scripts with --help first.
+Resolve <skill dir> as this SKILL.md's folder.
 The checker needs Python 3.9+: `python3 <skill dir>/scripts/inwoven.py <command>`.
 If Python or git cannot run, validate by the references and report `unchecked: <reason>`; never claim a pass. `check [FILE...]` skips missing optional files; for another filename use `check --kind backlog FILE`.
 `move-goals --root DIR` moves a goal block from backlog.md into goals.md (`check` errors on one).
@@ -128,7 +124,7 @@ If Python or git cannot run, validate by the references and report `unchecked: <
 `guard --base GIT_REF` needs git on PATH; it reports changes and never edits.
 `init [KIND...] --root DIR` creates missing files; kinds backlog, goals, impact, wardley, learnings; default backlog. It never overwrites.
 Replace the example only in a newly created file. Never add frontmatter to existing files.
-New files have title and updated frontmatter; nonempty updated must be a real calendar date.
+New files have title and updated frontmatter; nonempty updated is a real date.
 Read only the matching reference for the file kind you edit:
 - [Backlog format](references/backlog-format.md)
 - [Goals format](references/goals-format.md)

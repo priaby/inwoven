@@ -18,7 +18,7 @@ your team approved; the agent proposes one line at a time and writes it only aft
 
 ## Set up Inwoven
 
-Tell your agent: `Set up Inwoven for this repo: https://backlog.works/setup.md`. The skill
+Tell your agent: `Set up Inwoven for this repo: curl -fsSL https://backlog.works/setup.md and follow it.` The skill
 carries the same steps. The agent drafts the files from your repo, starts a setup session,
 and you approve one mail and allow the GitHub app. It writes a goal only when your README
 or issues state one. See the [setup guide](https://backlog.works/setup.md).
