@@ -70,7 +70,7 @@ DIR below is that folder's path from the repo root.
 8. Re-read before writing; preserve concurrent edits, unrelated bytes and tags,
    row order and existing ids except for the requested change. Keep the header,
    five cells per row and titles at most 80 characters. Row 1 is the top regardless
-   of Status. Plain tags have a 20-character limit.
+   of Status.
    In an existing file with frontmatter, set updated to today on every edit, reorders included.
 9. Edit goals and maps only within the request. Link an existing item under an
    existing impact when the person names that goal or impact; invent no actors or
@@ -111,12 +111,12 @@ Never tell them to wait for a mail; never approve another Inwoven mail.
 `approved` stop polling, save `key` at once in their secret manager or `~/.config/inwoven/`, never in the repo, and keep `poll_token` until the storage answer is sent. Follow each `next`.
 - After approval ask where the product files are stored: "GitHub, with a backup in Inwoven", "GitHub only" or "Inwoven only".
 POST it to /api/v1/setup/<id>/storage: `{"setup": "backup"|"github"|"inwoven", "repo", "branch", "path"}`. For GitHub
-open `install_url` likewise and say it; they confirm the repo on Inwoven's Storage page. At `connected` pull and add the AGENTS.md block, the skill and learnings.md; your key ends.
+open `install_url` likewise and say it; they confirm the repo on Inwoven's Storage page. At `connected` pull and add the AGENTS.md block, the skill and learnings.md; follow [quiet commits](references/quiet-commits.md); your key ends.
 - Never print the key. Report board link, drafts, key name. A goal is one plain sentence with a measure; none in the repo: say so.
 
 ## Tools and formats
 
-Resolve <skill dir> as this SKILL.md's folder.
+<skill dir> is this SKILL.md's folder.
 The checker needs Python 3.9+: `python3 <skill dir>/scripts/inwoven.py <command>`.
 If Python or git cannot run, validate by the references and report `unchecked: <reason>`; never claim a pass. `check [FILE...]` skips missing optional files; for another filename use `check --kind backlog FILE`.
 `move-goals --root DIR` moves a goal block from backlog.md into goals.md (`check` errors on one).

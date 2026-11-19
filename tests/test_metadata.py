@@ -33,7 +33,7 @@ class MetadataTests(unittest.TestCase):
     def test_manifest_and_install_metadata(self):
         root = json.loads((TREE / 'plugin.json').read_text())
         self.assertEqual(root, json.loads((TREE / '.claude-plugin/plugin.json').read_text()))
-        self.assertEqual(root['version'], '0.9.3')
+        self.assertEqual(root['version'], '0.9.4')
         self.assertRegex(root['version'], r'\A(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)\Z')
         market = json.loads((TREE / '.claude-plugin/marketplace.json').read_text())
         self.assertEqual(market['name'], root['name'])
