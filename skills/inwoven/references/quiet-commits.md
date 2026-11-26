@@ -4,7 +4,7 @@ Read once, at the end of GitHub setup. Goal: a board edit starts no build or dep
 
 ## What Inwoven commits
 
-Inwoven commits each board edit to the default branch as `backlog-works[bot]`.
+Inwoven commits board edits to the connected branch as `backlog-works[bot]`: one commit for each edit with GitHub only, one for the edits of up to 5 minutes or a day with GitHub and Inwoven.
 Every message ends with the line `[skip ci] [skip render] [skip-cd]`.
 GitHub Actions, GitLab CI, CircleCI, Buildkite, Netlify, Render and AWS Amplify read it and skip the build.
 Change nothing for them.

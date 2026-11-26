@@ -23,6 +23,7 @@ Resolve the backlog from the person's named path, then repo instructions, otherw
 look in docs/product/ in the current folder, then the repo root. Ask if several fit.
 Context files are beside the backlog unless named otherwise.
 DIR below is that folder's path from the repo root.
+Key: [use the API](references/where-to-work.md).
 
 ## Working an item
 
@@ -109,7 +110,7 @@ Then write `approve_url` itself and `code` to the person in a reply, not in thin
 Never tell them to wait for a mail; never approve another Inwoven mail.
 - Do not end your turn. Poll `GET <poll_url>?wait=25`, one call each: it answers when they approve; if still waiting, ask again at once, no sleep, for 15 minutes. At
 `approved` stop polling, save `key` at once in their secret manager or `~/.config/inwoven/`, never in the repo, and keep `poll_token` until the storage answer is sent. Follow each `next`.
-- After approval ask where the product files are stored: "GitHub, with a backup in Inwoven", "GitHub only" or "Inwoven only".
+- After approval ask where to store the product files: "GitHub and Inwoven", "GitHub only" or "Inwoven only".
 POST it to /api/v1/setup/<id>/storage: `{"setup": "backup"|"github"|"inwoven", "repo", "branch", "path"}`. For GitHub
 open `install_url` likewise and say it; they confirm the repo on Inwoven's Storage page. At `connected` pull and add the AGENTS.md block, the skill and learnings.md; follow [quiet commits](references/quiet-commits.md); your key ends.
 - Never print the key. Report board link, drafts, key name. A goal is one plain sentence with a measure; none in the repo: say so.
@@ -125,10 +126,10 @@ If Python or git cannot run, validate by the references and report `unchecked: <
 `init [KIND...] --root DIR` creates missing files; kinds backlog, goals, impact, wardley, learnings; default backlog. It never overwrites.
 Replace the example only in a newly created file. Never add frontmatter to existing files.
 New files have title and updated frontmatter; nonempty updated is a real date.
-Read only the matching reference for the file kind you edit:
+Read only the reference for the file kind you edit:
 - [Backlog format](references/backlog-format.md)
 - [Goals format](references/goals-format.md)
 - [Impact format](references/impact-format.md)
 - [Wardley format](references/wardley-format.md)
 - [Learnings format](references/learnings-format.md)
-If a file uses another format, report the difference before applying these rules.
+If a file uses another format, report the difference first.
